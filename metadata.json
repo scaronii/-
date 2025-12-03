@@ -1,0 +1,7 @@
+{
+  "name": "UniAI - Агрегатор Нейросетей",
+  "description": "Единая платформа доступа к GPT-5, Gemini, Claude и другим топовым нейросетям на русском языке без VPN.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
