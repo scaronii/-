@@ -97,6 +97,18 @@
 </script>
 </head>
   <body class="bg-offwhite text-charcoal overflow-hidden selection:bg-lime selection:text-charcoal">
-    <div id="root"></div>
+    <div id="root">
+       <div style="height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 500; color: #9ca3af;">
+         Загрузка UniAI...
+       </div>
+    </div>
+    
+    <!-- Polyfill for process.env to prevent runtime crashes in browser -->
+    <script>
+      window.process = window.process || { env: {} };
+    </script>
+    
+    <!-- Main Entry Point -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
