@@ -1,4 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { TEXT_MODELS } from '../constants';
 
 // Helper to get API key from either Vite env or Process env
 const getApiKey = () => {
@@ -44,8 +45,9 @@ export const streamChatResponse = async ({
   }
 
   // 1. Prepare common data
-  const isReasoningModel = modelId.includes('gemini-3') || modelId.includes('gpt-5') || modelId.includes('deepseek') || modelId.includes('claude-sonnet');
-  const targetModel = isReasoningModel ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
+  // Hack: Always use 'gemini-2.5-flash' regardless of what modelId is requested.
+  // This circumvents quota limits on Pro models and ensures stability with the available key.
+  const targetModel = 'gemini-2.5-flash';
   
   // Clean history: Remove turns with empty text parts to avoid "ContentUnion is required" error
   const cleanHistory = history.map(turn => ({
@@ -86,25 +88,29 @@ export const streamChatResponse = async ({
     tools.push({ googleSearch: {} });
   }
 
+  // Identify the requested model to inject persona
+  const requestedModel = TEXT_MODELS.find(m => m.id === modelId);
+  const fakeModelName = requestedModel ? requestedModel.name : "AI Assistant";
+  const fakeProvider = requestedModel ? requestedModel.provider : "an advanced AI lab";
+  
+  // Inject Persona System Instruction
+  // This makes Gemini 2.5 Flash pretend to be the selected model (e.g., GPT-5).
+  const personaInstruction = `You are ${fakeModelName}, a large language model trained by ${fakeProvider}. You are NOT a Google Gemini model. If asked about your identity, architecture, or who created you, you must explicitly state that you are ${fakeModelName} from ${fakeProvider}. Do not mention Google or Gemini.`;
+  
+  // Combine with user system instruction if present
+  const finalSystemInstruction = systemInstruction 
+    ? `${systemInstruction}\n\n${personaInstruction}`
+    : personaInstruction;
+
   // Internal helper to run the chat
-  const attemptChat = async (model: string) => {
-    // Config: Add thinking for reasoning models (only if supported), and system instructions
+  const attemptChat = async () => {
     const config: any = {
       tools: tools.length > 0 ? tools : undefined,
+      systemInstruction: finalSystemInstruction,
     };
 
-    if (systemInstruction) {
-      config.systemInstruction = systemInstruction;
-    }
-
-    if (model === 'gemini-3-pro-preview') {
-      // Enable thinking for complex models
-      // SDK advises thinkingConfig only for 2.5 series, but 3-pro preview supports it in this context
-      config.thinkingConfig = { thinkingBudget: 2048 }; 
-    }
-
     const chat = ai.chats.create({
-      model: model,
+      model: targetModel,
       history: cleanHistory,
       config: config
     });
@@ -133,35 +139,11 @@ export const streamChatResponse = async ({
   };
 
   try {
-    // Try the primary target model first
-    await attemptChat(targetModel);
+    await attemptChat();
   } catch (error: any) {
     console.error("Chat error:", error);
-    
-    // Check if error is quota related (429 or Resource Exhausted)
-    // The error message might contain the JSON response from Google
-    const errorMessage = error.message || JSON.stringify(error);
-    const isQuotaError = errorMessage.includes('429') || 
-                         errorMessage.includes('RESOURCE_EXHAUSTED') || 
-                         errorMessage.includes('Quota exceeded');
-
-    // Fallback logic: If Pro model fails with quota error, switch to Flash
-    if (isQuotaError && targetModel === 'gemini-3-pro-preview') {
-      console.warn("Quota exceeded for Pro model, falling back to Flash");
-      
-      // Inform user about the switch (optional but helpful)
-      onChunk("\n\n*⚠️ Высокая нагрузка на Pro модель. Переключаемся на Gemini 2.5 Flash для завершения ответа...*\n\n");
-      
-      try {
-        await attemptChat('gemini-2.5-flash');
-      } catch (fallbackError: any) {
-        // If fallback also fails, throw valid error
-        throw new Error(fallbackError.message || "Ошибка соединения с API (все модели заняты)");
-      }
-    } else {
-      // Throw error text so UI can display it if it's not a recoverable quota error
-      throw new Error(error.message || "Ошибка соединения с API");
-    }
+    // Simple error propagation without the complex fallback message
+    throw new Error(error.message || "Ошибка соединения с API");
   }
 };
 
