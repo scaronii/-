@@ -53,7 +53,7 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    // Update UI immediately
+    // Update UI immediately with user message
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
         return {
@@ -67,25 +67,27 @@ const App: React.FC = () => {
 
     setIsTyping(true);
 
+    // Create placeholder for AI message
+    const aiMsgId = (Date.now() + 1).toString();
+    const aiMsg: Message = {
+      id: aiMsgId,
+      role: 'model',
+      text: '',
+      timestamp: Date.now(),
+    };
+
+    setSessions(prev => prev.map(s => {
+      if (s.id === currentSessionId) {
+        return { ...s, messages: [...s.messages, aiMsg] };
+      }
+      return s;
+    }));
+
     try {
-      const aiMsgId = (Date.now() + 1).toString();
-      const aiMsg: Message = {
-        id: aiMsgId,
-        role: 'model',
-        text: '',
-        timestamp: Date.now(),
-      };
-
-      setSessions(prev => prev.map(s => {
-        if (s.id === currentSessionId) {
-          return { ...s, messages: [...s.messages, aiMsg] };
-        }
-        return s;
-      }));
-
+      // Safely construct history, ensuring text is never undefined
       const history = currentSession.messages.map(m => ({
         role: m.role,
-        parts: [{ text: m.text }] 
+        parts: [{ text: m.text || " " }] 
       }));
 
       let accumulatedText = "";
@@ -111,8 +113,22 @@ const App: React.FC = () => {
         }
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending message", error);
+      // UPDATE UI WITH ERROR
+      setSessions(prev => prev.map(s => {
+        if (s.id === currentSessionId) {
+          const updatedMessages = s.messages.map(m => 
+            m.id === aiMsgId ? { 
+              ...m, 
+              text: `⚠️ Ошибка: ${error.message || 'Не удалось получить ответ'}`,
+              isError: true 
+            } : m
+          );
+          return { ...s, messages: updatedMessages };
+        }
+        return s;
+      }));
     } finally {
       setIsTyping(false);
     }

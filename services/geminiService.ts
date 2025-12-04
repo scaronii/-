@@ -22,6 +22,11 @@ export const streamChatResponse = async ({
   systemInstruction,
   onChunk
 }: StreamChatOptions) => {
+  // 1. Explicitly check for API Key presence
+  if (!apiKey || apiKey === 'undefined') {
+    throw new Error("API Key не найден. Убедитесь, что переменная окружения API_KEY установлена.");
+  }
+
   try {
     // Map concept models to real Gemini models
     const isReasoningModel = modelId.includes('gemini-3') || modelId.includes('gpt-5') || modelId.includes('deepseek') || modelId.includes('claude-sonnet');
@@ -48,12 +53,22 @@ export const streamChatResponse = async ({
       config.thinkingConfig = { thinkingBudget: 2048 }; 
     }
 
-    // Construct the new message part
-    const newParts: any[] = [{ text: message }];
+    // Clean history: Remove turns with empty text parts to avoid "ContentUnion is required" error
+    const cleanHistory = history.map(turn => ({
+      role: turn.role,
+      parts: turn.parts.filter(p => {
+        // If it's a text part, ensure it's not empty or just whitespace
+        if ('text' in p) return p.text && p.text.trim().length > 0;
+        return true; // Keep other parts like inlineData
+      })
+    })).filter(turn => turn.parts.length > 0); // Remove turns that became empty
+
+    // Construct the new message parts safely
+    const newParts: any[] = [];
     
-    // If there's an attachment, add it to the user's current message
+    // If there's an attachment, add it first
     if (attachment) {
-      newParts.unshift({
+      newParts.push({
         inlineData: {
           mimeType: attachment.mimeType,
           data: attachment.data
@@ -61,13 +76,24 @@ export const streamChatResponse = async ({
       });
     }
 
+    // Add text part only if it's not empty
+    if (message && message.trim().length > 0) {
+      newParts.push({ text: message });
+    }
+
+    // Fallback: If both are empty (shouldn't happen with UI validation, but safe to handle)
+    // The API requires at least one part.
+    if (newParts.length === 0) {
+      newParts.push({ text: " " });
+    }
+
     const chat = ai.chats.create({
       model: targetModel,
-      history: history,
+      history: cleanHistory,
       config: config
     });
 
-    const result = await chat.sendMessageStream(newParts);
+    const result = await chat.sendMessageStream({ message: newParts });
 
     for await (const chunk of result) {
       const c = chunk as GenerateContentResponse;
@@ -88,9 +114,10 @@ export const streamChatResponse = async ({
         }
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat error:", error);
-    throw error;
+    // Throw error text so UI can display it
+    throw new Error(error.message || "Ошибка соединения с API");
   }
 };
 
@@ -99,6 +126,9 @@ export const generateImage = async (
   prompt: string,
   aspectRatio: string = "1:1"
 ): Promise<{ url: string | null, mimeType?: string }> => {
+  if (!apiKey) {
+      throw new Error("API Key не найден.");
+  }
   try {
     // For this demo environment, we stick to the working flash-image for reliability
     const targetModel = 'gemini-2.5-flash-image'; 

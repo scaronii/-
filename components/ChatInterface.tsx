@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Globe, Bot, User, X, FileText, Image as ImageIcon, ChevronDown, Mic, Copy, Check } from 'lucide-react';
+import { Send, Paperclip, Globe, Bot, User, X, FileText, Image as ImageIcon, ChevronDown, Mic, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Message } from '../types';
 import { TEXT_MODELS } from '../constants';
 import { clsx } from 'clsx';
@@ -118,7 +118,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     return (
       <div className="rounded-xl overflow-hidden my-4 border border-gray-800 shadow-md">
-        <div className="bg-charcoal px-4 py-2 flex items-center justify-between text-xs text-gray-300">
+        <div className="bg-charcoal px-4 py-2 flex items-center justify-center sm:justify-between text-xs text-gray-300">
           <span className="font-mono uppercase">{language}</span>
           <button 
             onClick={handleCopy}
@@ -221,55 +221,62 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </div>
             </div>
           ) : (
-            messages.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={clsx(
-                  "flex gap-4",
-                  msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-                )}
-              >
-                {/* Avatar */}
-                <div className={clsx(
-                  "w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm",
-                  msg.role === 'user' ? "bg-charcoal text-white" : "bg-white text-charcoal border border-gray-100"
-                )}>
-                  {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
-                </div>
-                
-                {/* Message Bubble */}
-                <div className={clsx(
-                  "rounded-[2rem] px-8 py-6 max-w-[85%] sm:max-w-[75%] shadow-sm text-base leading-relaxed",
-                  msg.role === 'user' 
-                    ? "bg-lime text-charcoal rounded-tr-none" 
-                    : "bg-white text-charcoal border border-gray-50 rounded-tl-none shadow-soft"
-                )}>
-                  {msg.role === 'model' ? (
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
-                      className="markdown-body"
-                      components={{
-                        code: ({node, className, children, ...props}: any) => {
-                           const match = /language-(\w+)/.exec(className || '')
-                           return match ? (
-                             <CodeBlock className={className}>{children}</CodeBlock>
-                           ) : (
-                             <code className={className} {...props}>
-                               {children}
-                             </code>
-                           )
-                        },
-                        a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline" />
-                      }}
-                    >
-                      {msg.text}
-                    </ReactMarkdown>
-                  ) : (
-                    <div className="whitespace-pre-wrap font-medium">{msg.text}</div>
+            messages.map((msg) => {
+              // Hide empty model messages (placeholders for streaming)
+              if (msg.role === 'model' && !msg.text && !msg.isError) return null;
+
+              return (
+                <div 
+                  key={msg.id} 
+                  className={clsx(
+                    "flex gap-4",
+                    msg.role === 'user' ? "flex-row-reverse" : "flex-row"
                   )}
+                >
+                  {/* Avatar */}
+                  <div className={clsx(
+                    "w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm",
+                    msg.role === 'user' ? "bg-charcoal text-white" : "bg-white text-charcoal border border-gray-100",
+                    msg.isError && "bg-red-50 border-red-100 text-red-500"
+                  )}>
+                    {msg.isError ? <AlertTriangle size={18} /> : (msg.role === 'user' ? <User size={18} /> : <Bot size={18} />)}
+                  </div>
+                  
+                  {/* Message Bubble */}
+                  <div className={clsx(
+                    "rounded-[2rem] px-8 py-6 max-w-[85%] sm:max-w-[75%] shadow-sm text-base leading-relaxed",
+                    msg.role === 'user' 
+                      ? "bg-lime text-charcoal rounded-tr-none" 
+                      : "bg-white text-charcoal border border-gray-50 rounded-tl-none shadow-soft",
+                    msg.isError && "bg-red-50 text-red-800 border-red-100"
+                  )}>
+                    {msg.role === 'model' ? (
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        className="markdown-body"
+                        components={{
+                          code: ({node, className, children, ...props}: any) => {
+                             const match = /language-(\w+)/.exec(className || '')
+                             return match ? (
+                               <CodeBlock className={className}>{children}</CodeBlock>
+                             ) : (
+                               <code className={className} {...props}>
+                                 {children}
+                               </code>
+                             )
+                          },
+                          a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline" />
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    ) : (
+                      <div className="whitespace-pre-wrap font-medium">{msg.text}</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           {isTyping && (
             <div className="flex gap-4">
