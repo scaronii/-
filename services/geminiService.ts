@@ -1,7 +1,23 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Helper to get API key from either Vite env or Process env
+const getApiKey = () => {
+  // Check for VITE_API_KEY in import.meta.env (Vite/Vercel)
+  // We use type casting to avoid TS errors if types aren't configured
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_KEY) {
+    return (import.meta as any).env.VITE_API_KEY;
+  }
+  // Check standard process.env (Node/Dev)
+  if (typeof process !== 'undefined' && process.env?.API_KEY) {
+    return process.env.API_KEY;
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
+// Initialize with retrieved key or empty string to prevent immediate crash,
+// though we validate before calls.
+const ai = new GoogleGenAI({ apiKey: apiKey || 'missing_key' });
 
 interface StreamChatOptions {
   modelId: string;
@@ -23,8 +39,8 @@ export const streamChatResponse = async ({
   onChunk
 }: StreamChatOptions) => {
   // 1. Explicitly check for API Key presence
-  if (!apiKey || apiKey === 'undefined') {
-    throw new Error("API Key не найден. Убедитесь, что переменная окружения API_KEY установлена.");
+  if (!apiKey) {
+    throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен в переменных окружения.");
   }
 
   try {
@@ -50,6 +66,8 @@ export const streamChatResponse = async ({
 
     if (isReasoningModel) {
       // Enable thinking for complex models
+      // Note: SDK advises thinkingConfig only for 2.5 series, but code uses 3-pro. 
+      // Keeping as is per existing logic, assuming 3-pro preview supports it or ignores it.
       config.thinkingConfig = { thinkingBudget: 2048 }; 
     }
 
@@ -127,7 +145,7 @@ export const generateImage = async (
   aspectRatio: string = "1:1"
 ): Promise<{ url: string | null, mimeType?: string }> => {
   if (!apiKey) {
-      throw new Error("API Key не найден.");
+      throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен.");
   }
   try {
     // For this demo environment, we stick to the working flash-image for reliability

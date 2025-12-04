@@ -223,7 +223,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           ) : (
             messages.map((msg) => {
               // Hide empty model messages (placeholders for streaming)
-              if (msg.role === 'model' && !msg.text && !msg.isError) return null;
+              // We check for null/empty and strip all whitespace to prevent ghost bubbles
+              if (msg.role === 'model' && (!msg.text || !msg.text.replace(/\s/g, '')) && !msg.isError) return null;
 
               return (
                 <div 
