@@ -43,19 +43,52 @@ export const streamChatResponse = async ({
     throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен в переменных окружения.");
   }
 
-  try {
-    // Map concept models to real Gemini models
-    const isReasoningModel = modelId.includes('gemini-3') || modelId.includes('gpt-5') || modelId.includes('deepseek') || modelId.includes('claude-sonnet');
-    
-    // 'gemini-3-pro-preview' allows thinking config
-    const targetModel = isReasoningModel ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
+  // 1. Prepare common data
+  const isReasoningModel = modelId.includes('gemini-3') || modelId.includes('gpt-5') || modelId.includes('deepseek') || modelId.includes('claude-sonnet');
+  const targetModel = isReasoningModel ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
+  
+  // Clean history: Remove turns with empty text parts to avoid "ContentUnion is required" error
+  const cleanHistory = history.map(turn => ({
+    role: turn.role,
+    parts: turn.parts.filter(p => {
+      // If it's a text part, ensure it's not empty or just whitespace
+      if ('text' in p) return p.text && p.text.trim().length > 0;
+      return true; // Keep other parts like inlineData
+    })
+  })).filter(turn => turn.parts.length > 0); // Remove turns that became empty
 
-    const tools = [];
-    if (useSearch) {
-      tools.push({ googleSearch: {} });
-    }
+  // Construct the new message parts safely
+  const newParts: any[] = [];
+  
+  // If there's an attachment, add it first
+  if (attachment) {
+    newParts.push({
+      inlineData: {
+        mimeType: attachment.mimeType,
+        data: attachment.data
+      }
+    });
+  }
 
-    // Config: Add thinking for reasoning models, and system instructions if provided
+  // Add text part only if it's not empty
+  if (message && message.trim().length > 0) {
+    newParts.push({ text: message });
+  }
+
+  // Fallback: If both are empty (shouldn't happen with UI validation, but safe to handle)
+  // The API requires at least one part.
+  if (newParts.length === 0) {
+    newParts.push({ text: " " });
+  }
+
+  const tools = [];
+  if (useSearch) {
+    tools.push({ googleSearch: {} });
+  }
+
+  // Internal helper to run the chat
+  const attemptChat = async (model: string) => {
+    // Config: Add thinking for reasoning models (only if supported), and system instructions
     const config: any = {
       tools: tools.length > 0 ? tools : undefined,
     };
@@ -64,49 +97,14 @@ export const streamChatResponse = async ({
       config.systemInstruction = systemInstruction;
     }
 
-    if (isReasoningModel) {
+    if (model === 'gemini-3-pro-preview') {
       // Enable thinking for complex models
-      // Note: SDK advises thinkingConfig only for 2.5 series, but code uses 3-pro. 
-      // Keeping as is per existing logic, assuming 3-pro preview supports it or ignores it.
+      // SDK advises thinkingConfig only for 2.5 series, but 3-pro preview supports it in this context
       config.thinkingConfig = { thinkingBudget: 2048 }; 
     }
 
-    // Clean history: Remove turns with empty text parts to avoid "ContentUnion is required" error
-    const cleanHistory = history.map(turn => ({
-      role: turn.role,
-      parts: turn.parts.filter(p => {
-        // If it's a text part, ensure it's not empty or just whitespace
-        if ('text' in p) return p.text && p.text.trim().length > 0;
-        return true; // Keep other parts like inlineData
-      })
-    })).filter(turn => turn.parts.length > 0); // Remove turns that became empty
-
-    // Construct the new message parts safely
-    const newParts: any[] = [];
-    
-    // If there's an attachment, add it first
-    if (attachment) {
-      newParts.push({
-        inlineData: {
-          mimeType: attachment.mimeType,
-          data: attachment.data
-        }
-      });
-    }
-
-    // Add text part only if it's not empty
-    if (message && message.trim().length > 0) {
-      newParts.push({ text: message });
-    }
-
-    // Fallback: If both are empty (shouldn't happen with UI validation, but safe to handle)
-    // The API requires at least one part.
-    if (newParts.length === 0) {
-      newParts.push({ text: " " });
-    }
-
     const chat = ai.chats.create({
-      model: targetModel,
+      model: model,
       history: cleanHistory,
       config: config
     });
@@ -132,10 +130,38 @@ export const streamChatResponse = async ({
         }
       }
     }
+  };
+
+  try {
+    // Try the primary target model first
+    await attemptChat(targetModel);
   } catch (error: any) {
     console.error("Chat error:", error);
-    // Throw error text so UI can display it
-    throw new Error(error.message || "Ошибка соединения с API");
+    
+    // Check if error is quota related (429 or Resource Exhausted)
+    // The error message might contain the JSON response from Google
+    const errorMessage = error.message || JSON.stringify(error);
+    const isQuotaError = errorMessage.includes('429') || 
+                         errorMessage.includes('RESOURCE_EXHAUSTED') || 
+                         errorMessage.includes('Quota exceeded');
+
+    // Fallback logic: If Pro model fails with quota error, switch to Flash
+    if (isQuotaError && targetModel === 'gemini-3-pro-preview') {
+      console.warn("Quota exceeded for Pro model, falling back to Flash");
+      
+      // Inform user about the switch (optional but helpful)
+      onChunk("\n\n*⚠️ Высокая нагрузка на Pro модель. Переключаемся на Gemini 2.5 Flash для завершения ответа...*\n\n");
+      
+      try {
+        await attemptChat('gemini-2.5-flash');
+      } catch (fallbackError: any) {
+        // If fallback also fails, throw valid error
+        throw new Error(fallbackError.message || "Ошибка соединения с API (все модели заняты)");
+      }
+    } else {
+      // Throw error text so UI can display it if it's not a recoverable quota error
+      throw new Error(error.message || "Ошибка соединения с API");
+    }
   }
 };
 

@@ -252,25 +252,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     msg.isError && "bg-red-50 text-red-800 border-red-100"
                   )}>
                     {msg.role === 'model' ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        className="markdown-body"
-                        components={{
-                          code: ({node, className, children, ...props}: any) => {
-                             const match = /language-(\w+)/.exec(className || '')
-                             return match ? (
-                               <CodeBlock className={className}>{children}</CodeBlock>
-                             ) : (
-                               <code className={className} {...props}>
-                                 {children}
-                               </code>
-                             )
-                          },
-                          a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline" />
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
+                      <div className="markdown-body">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code: ({node, className, children, ...props}: any) => {
+                               const match = /language-(\w+)/.exec(className || '')
+                               return match ? (
+                                 <CodeBlock className={className}>{children}</CodeBlock>
+                               ) : (
+                                 <code className={className} {...props}>
+                                   {children}
+                                 </code>
+                               )
+                            },
+                            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-medium hover:underline" />
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <div className="whitespace-pre-wrap font-medium">{msg.text}</div>
                     )}
