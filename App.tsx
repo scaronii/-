@@ -4,47 +4,111 @@ import { ChatInterface } from './components/ChatInterface';
 import { ImageGenerator } from './components/ImageGenerator';
 import { Pricing } from './components/Pricing';
 import { SettingsModal } from './components/SettingsModal';
-import { ChatSession, Message, ViewState } from './types';
+import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
+import { userService } from './services/userService';
 import { Menu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('chat');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string>('gpt-5-nano'); // Default per prompt
+  const [selectedModelId, setSelectedModelId] = useState<string>('gpt-5-nano'); 
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Settings State
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [systemInstruction, setSystemInstruction] = useState('');
+  
+  // Telegram & User Data State
+  const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
+  const [balance, setBalance] = useState<number>(50000); 
 
-  // Initialize a chat if none exists
+  // Initialize App
   useEffect(() => {
-    if (sessions.length === 0) {
-      handleNewChat();
-    }
+    const initApp = async () => {
+      // 1. Check Telegram
+      let user = null;
+      if ((window as any).Telegram?.WebApp) {
+        const tg = (window as any).Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        if (tg.initDataUnsafe?.user) {
+          user = tg.initDataUnsafe.user;
+          setTgUser(user);
+        }
+      }
+
+      // 2. Load Data (from DB or Local)
+      if (user) {
+        // Init user in DB
+        await userService.initUser(user);
+        
+        // Load Balance
+        const bal = await userService.getBalance(user.id);
+        setBalance(bal);
+
+        // Load Chats
+        const history = await userService.getUserChats(user.id);
+        if (history.length > 0) {
+          setSessions(history);
+          setCurrentSessionId(history[0].id);
+        } else {
+          await createNewChatSession(user.id);
+        }
+      } else {
+        // Fallback for non-telegram users (local state only)
+        handleNewChat();
+      }
+    };
+
+    initApp();
   }, []);
 
-  const handleNewChat = () => {
+  const createNewChatSession = async (userId?: number) => {
+    let newId = Date.now().toString();
+    
+    if (userId) {
+       // Create in DB immediately to get UUID
+       const dbId = await userService.createChat(userId, 'Новый чат', selectedModelId);
+       if (dbId) newId = dbId;
+    }
+
     const newSession: ChatSession = {
-      id: Date.now().toString(),
+      id: newId,
       title: 'Новый чат',
       messages: [],
       updatedAt: Date.now(),
       modelId: selectedModelId,
-      systemInstruction: systemInstruction // Persist current instruction
+      systemInstruction: systemInstruction
     };
+    
     setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newSession.id);
+    setCurrentSessionId(newId);
+    return newId;
+  };
+
+  const handleNewChat = () => {
+    if (tgUser) {
+      createNewChatSession(tgUser.id);
+    } else {
+      createNewChatSession();
+    }
     setCurrentView('chat');
+    if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0];
 
   const handleSendMessage = async (text: string, modelId: string, attachment: { mimeType: string; data: string } | null, useSearch: boolean) => {
     if (!currentSessionId) return;
+
+    if (balance <= 0) {
+      alert("Недостаточно токенов. Пожалуйста, пополните баланс.");
+      setCurrentView('pricing');
+      return;
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -53,7 +117,7 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    // Update UI immediately with user message
+    // Update UI immediately
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
         return {
@@ -64,10 +128,14 @@ const App: React.FC = () => {
       }
       return s;
     }));
+    
+    // Save User Msg to DB
+    if (tgUser) {
+       userService.saveMessage(currentSessionId, 'user', userMsg.text);
+    }
 
     setIsTyping(true);
 
-    // Create placeholder for AI message
     const aiMsgId = (Date.now() + 1).toString();
     const aiMsg: Message = {
       id: aiMsgId,
@@ -84,7 +152,6 @@ const App: React.FC = () => {
     }));
 
     try {
-      // Safely construct history, ensuring text is never undefined
       const history = currentSession.messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text || " " }] 
@@ -113,9 +180,21 @@ const App: React.FC = () => {
         }
       });
 
+      // Save AI Msg to DB
+      if (tgUser) {
+        await userService.saveMessage(currentSessionId, 'model', accumulatedText);
+        
+        // Deduct tokens & Sync Balance
+        const estimatedCost = 50 + Math.ceil((text.length + accumulatedText.length) / 4);
+        const newBalance = await userService.deductTokens(tgUser.id, estimatedCost);
+        if (newBalance !== undefined) setBalance(newBalance);
+      } else {
+        const estimatedCost = 50 + Math.ceil((text.length + accumulatedText.length) / 4);
+        setBalance(prev => Math.max(0, prev - estimatedCost));
+      }
+
     } catch (error: any) {
       console.error("Error sending message", error);
-      // UPDATE UI WITH ERROR
       setSessions(prev => prev.map(s => {
         if (s.id === currentSessionId) {
           const updatedMessages = s.messages.map(m => 
@@ -149,7 +228,7 @@ const App: React.FC = () => {
       case 'images':
         return <ImageGenerator />;
       case 'pricing':
-        return <Pricing />;
+        return <Pricing tgUser={tgUser} />;
       case 'docs':
         return (
           <div className="p-6 lg:p-12 overflow-y-auto h-full">
@@ -159,89 +238,11 @@ const App: React.FC = () => {
                 <h1 className="text-4xl font-bold mb-4 relative z-10">База знаний UniAI</h1>
                 <p className="text-gray-300 text-lg relative z-10">Профессиональные гайды и инструкции. Учитесь бесплатно.</p>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Card 1: Start (Blue) */}
-                <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50 hover:shadow-lg transition-all hover:-translate-y-1 group">
-                  <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                    {/* Custom Abstract Compass Icon */}
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="16" cy="16" r="12" className="stroke-blue-200" strokeWidth="2"/>
-                      <circle cx="16" cy="16" r="4" className="fill-blue-500"/>
-                      <path d="M16 4L16 8" className="stroke-blue-500" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M28 16L24 16" className="stroke-blue-300" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M16 28L16 24" className="stroke-blue-300" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M4 16L8 16" className="stroke-blue-300" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M20 12L12 20" className="stroke-blue-500" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-charcoal mb-4">Начало работы</h3>
-                  <ul className="space-y-3 text-gray-600 font-medium">
-                    <li>• Выберите модель в чате (GPT-5 для текстов)</li>
-                    <li>• Используйте скрепку для загрузки файлов</li>
-                    <li>• Глобус включает поиск в интернете</li>
-                  </ul>
-                </div>
-
-                {/* Card 2: Economy (Yellow) */}
-                <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50 hover:shadow-lg transition-all hover:-translate-y-1 group">
-                  <div className="w-16 h-16 bg-yellow-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                    {/* Custom Abstract Stack Icon */}
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="8" y="20" width="16" height="4" rx="2" className="fill-yellow-400"/>
-                      <rect x="8" y="14" width="16" height="4" rx="2" className="fill-yellow-300"/>
-                      <rect x="8" y="8" width="16" height="4" rx="2" className="fill-yellow-200"/>
-                      <path d="M22 26H10C8.89543 26 8 25.1046 8 24V10C8 8.89543 8.89543 8 10 8H22C23.1046 8 24 8.89543 24 10V24C24 25.1046 23.1046 26 22 26Z" className="stroke-yellow-600" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-charcoal mb-4">Экономика</h3>
-                  <ul className="space-y-3 text-gray-600 font-medium">
-                    <li>• 1 токен ≈ 0.75 слова</li>
-                    <li>• Картинки: ~5,000 токенов</li>
-                    <li>• Тарифы от 250₽ в месяц</li>
-                  </ul>
-                </div>
-
-                {/* Card 3: Generation (Purple) */}
-                <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50 hover:shadow-lg transition-all hover:-translate-y-1 group">
-                  <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                    {/* Custom Abstract Canvas Icon */}
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="6" y="6" width="20" height="20" rx="4" className="fill-purple-100"/>
-                      <circle cx="12" cy="12" r="2" className="fill-purple-300"/>
-                      <path d="M26 20L21 15C20.6095 14.6095 19.9763 14.6095 19.5858 15L15 19.5858" className="stroke-purple-400" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M6 22L10 18C10.3905 17.6095 11.0237 17.6095 11.4142 18L17 23.5858" className="stroke-purple-500" strokeWidth="2" strokeLinecap="round"/>
-                      <rect x="6" y="6" width="20" height="20" rx="4" className="stroke-purple-600" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-charcoal mb-4">Генерация</h3>
-                  <p className="text-gray-500 mb-4 font-medium">Формула идеального промпта:</p>
-                  <code className="block bg-gray-100 p-4 rounded-xl text-sm text-charcoal font-mono border border-gray-200">
-                    [Объект] + [Окружение] + [Стиль]
-                  </code>
-                </div>
-
-                {/* Card 4: Models (Green) */}
-                <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50 hover:shadow-lg transition-all hover:-translate-y-1 group">
-                  <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                    {/* Custom Abstract Network Icon */}
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="16" cy="8" r="3" className="fill-green-400"/>
-                      <circle cx="8" cy="24" r="3" className="fill-green-400"/>
-                      <circle cx="24" cy="24" r="3" className="fill-green-400"/>
-                      <path d="M16 8L8 24" className="stroke-green-600" strokeWidth="2"/>
-                      <path d="M16 8L24 24" className="stroke-green-600" strokeWidth="2"/>
-                      <path d="M8 24H24" className="stroke-green-200" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-charcoal mb-4">Модели</h3>
-                  <ul className="space-y-3 text-gray-600 font-medium">
-                    <li><strong className="text-charcoal">Gemini 3.0:</strong> Аналитика</li>
-                    <li><strong className="text-charcoal">GPT-5:</strong> Логика</li>
-                    <li><strong className="text-charcoal">Claude:</strong> Кодинг</li>
-                  </ul>
-                </div>
+                 <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50">
+                    <h3 className="text-2xl font-bold text-charcoal mb-4">Начало работы</h3>
+                    <p className="text-gray-600">Инструкция по использованию нейросетей...</p>
+                 </div>
               </div>
             </div>
           </div>
@@ -270,10 +271,24 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 h-full relative flex flex-col min-w-0 md:p-4">
         {/* Mobile Header Trigger */}
-        <div className="md:hidden absolute top-4 left-4 z-20">
+        <div className="md:hidden absolute top-4 left-4 z-20 flex items-center gap-2">
           <button onClick={() => setSidebarOpen(true)} className="p-2 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100">
             <Menu size={24} />
           </button>
+          {tgUser && (
+             <div className="bg-surface px-3 py-2 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1">
+               <span className="w-2 h-2 bg-lime rounded-full"></span>
+               {balance.toLocaleString()} T
+             </div>
+          )}
+        </div>
+
+        {/* Desktop Balance Badge */}
+        <div className="hidden md:block absolute top-6 right-8 z-20">
+             <div className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('pricing')}>
+               <span>Баланс:</span>
+               <span className="text-lime-700">{balance.toLocaleString()} токенов</span>
+             </div>
         </div>
         
         <div className="h-full bg-transparent md:bg-white md:rounded-[2.5rem] md:shadow-soft md:border md:border-gray-50 overflow-hidden relative">

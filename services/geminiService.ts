@@ -1,25 +1,10 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { TEXT_MODELS } from '../constants';
 
-// Helper to get API key from either Vite env or Process env
-const getApiKey = () => {
-  // Check for VITE_API_KEY in import.meta.env (Vite/Vercel)
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_KEY) {
-    return (import.meta as any).env.VITE_API_KEY;
-  }
-  // Check standard process.env (Node/Dev)
-  if (typeof process !== 'undefined' && process.env?.API_KEY) {
-    return process.env.API_KEY;
-  }
-  return '';
-};
-
-const apiKey = getApiKey();
-
 // Initialize with proxy configuration to bypass VPN requirements
 // Requests will go to /google-api/... -> Vercel/Vite Proxy -> Google Servers
 const ai = new GoogleGenAI({ 
-  apiKey: apiKey || 'missing_key',
+  apiKey: process.env.API_KEY,
   baseUrl: typeof window !== 'undefined' ? `${window.location.origin}/google-api` : undefined
 });
 
@@ -43,7 +28,7 @@ export const streamChatResponse = async ({
   onChunk
 }: StreamChatOptions) => {
   // 1. Explicitly check for API Key presence
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен в переменных окружения.");
   }
 
@@ -155,7 +140,7 @@ export const generateImage = async (
   prompt: string,
   aspectRatio: string = "1:1"
 ): Promise<{ url: string | null, mimeType?: string }> => {
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
       throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен.");
   }
   try {
@@ -165,6 +150,11 @@ export const generateImage = async (
     const response = await ai.models.generateContent({
         model: targetModel,
         contents: prompt,
+        config: {
+          imageConfig: {
+            aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
+          }
+        }
     });
 
     if (response.candidates && response.candidates[0].content.parts) {

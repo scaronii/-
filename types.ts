@@ -39,6 +39,15 @@ export interface PricingPlan {
   features: string[];
   isPopular?: boolean;
   isPro?: boolean;
+  invoicePayload?: string; // Payload for Telegram Invoice
 }
 
 export type ViewState = 'chat' | 'images' | 'pricing' | 'docs';
+
+export interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+}

@@ -1,21 +1,63 @@
 import React, { useState } from 'react';
-import { Check, Zap, Star } from 'lucide-react';
+import { Check, Zap, Star, AlertCircle } from 'lucide-react';
 import { PLANS, FAQ_ITEMS } from '../constants';
 import { clsx } from 'clsx';
+import { TelegramUser } from '../types';
 
-export const Pricing: React.FC = () => {
+interface PricingProps {
+  tgUser: TelegramUser | null;
+}
+
+export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
   const [billingPeriod, setBillingPeriod] = useState<'month' | 'year'>('month');
+
+  const handleBuy = (plan: any) => {
+    // 1. Check if running inside Telegram
+    if (!(window as any).Telegram?.WebApp?.initData) {
+      alert("Для оплаты откройте приложение через Telegram бота.");
+      return;
+    }
+
+    const tg = (window as any).Telegram.WebApp;
+
+    // 2. Send Invoice Request to your Backend (which calls Telegram API)
+    // Since we don't have a real backend connected in this demo, we simulate the flow:
+    // User clicks button -> WebApp sends data to bot -> Bot sends invoice.
+    
+    // In a real app, you would do:
+    // await fetch('/api/create-invoice', { body: JSON.stringify({ planId: plan.id, userId: tgUser.id }) })
+    // tg.openInvoice(invoiceLink);
+
+    // Using `openLink` with a start parameter to trigger invoice in bot chat is a common pattern for WebApps without direct invoice integration 
+    // OR directly using openInvoice if you have the link.
+    
+    // Demo Simulation:
+    alert(`Запрос на покупку тарифа "${plan.name}" отправлен! В реальном приложении здесь откроется окно оплаты Telegram.`);
+    
+    // Example of how to trigger invoice if you generated one via API:
+    // tg.openInvoice(INVOICE_URL, (status) => {
+    //   if (status === 'paid') {
+    //     tg.close();
+    //   }
+    // });
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="max-w-7xl mx-auto w-full p-6 lg:p-12">
         
         <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-charcoal mb-6 tracking-tight">Выберите свой план</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-charcoal mb-6 tracking-tight">Пополните баланс</h1>
           <p className="text-gray-500 max-w-2xl mx-auto mb-10 text-lg">
-            Получите доступ ко всем топовым нейросетям с единой подпиской. 
-            Прозрачная система токенов без скрытых платежей.
+            Оплата через Telegram Stars или банковской картой РФ. Безопасно и мгновенно.
           </p>
+          
+          {!tgUser && (
+             <div className="inline-flex items-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-xl mb-6 border border-yellow-100">
+                <AlertCircle size={16} />
+                <span className="text-sm font-medium">Откройте в Telegram для оплаты</span>
+             </div>
+          )}
 
           <div className="inline-flex bg-surface p-1.5 rounded-2xl shadow-sm border border-gray-100">
             <button
@@ -94,13 +136,18 @@ export const Pricing: React.FC = () => {
                 </ul>
               </div>
 
-              <button className={clsx(
-                "w-full py-4 rounded-2xl font-bold transition-all transform active:scale-95",
-                plan.isPopular
-                  ? "bg-charcoal text-white hover:bg-black shadow-lg hover:shadow-xl"
-                  : "bg-gray-100 text-charcoal hover:bg-gray-200"
-              )}>
-                Выбрать план
+              <button 
+                onClick={() => handleBuy(plan)}
+                disabled={!tgUser}
+                className={clsx(
+                  "w-full py-4 rounded-2xl font-bold transition-all transform active:scale-95",
+                  plan.isPopular
+                    ? "bg-charcoal text-white hover:bg-black shadow-lg hover:shadow-xl"
+                    : "bg-gray-100 text-charcoal hover:bg-gray-200",
+                  !tgUser && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {tgUser ? `Купить за ${plan.price}₽` : "Только в Telegram"}
               </button>
             </div>
           ))}
