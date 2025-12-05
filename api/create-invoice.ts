@@ -1,3 +1,4 @@
+
 export const config = {
   runtime: 'edge',
 };
@@ -10,7 +11,7 @@ export default async function handler(request: Request) {
   }
 
   try {
-    const { planId, userId, price, title, description } = await request.json();
+    const { packId, userId, price, title, description } = await request.json();
 
     if (!BOT_TOKEN) {
         console.error('Telegram Bot Token is missing');
@@ -24,12 +25,11 @@ export default async function handler(request: Request) {
       chat_id: userId,
       title: title,
       description: description,
-      payload: planId, // Важно для webhook.ts
-      provider_token: "", // ПУСТАЯ СТРОКА ДЛЯ STARS - ЭТО ВАЖНО
-      currency: "XTR",    // Валюта Telegram Stars
+      payload: packId, // Передаем ID пакета
+      provider_token: "", // ПУСТАЯ СТРОКА ДЛЯ STARS
+      currency: "XTR",    
       prices: [{ label: title, amount: amount }],
       start_parameter: 'payment-start',
-      // Отключаем запрос данных доставки для цифровых товаров
       need_name: false,
       need_phone_number: false,
       need_email: false,

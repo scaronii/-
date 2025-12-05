@@ -26,7 +26,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
@@ -34,14 +36,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length > 0 || isTyping) {
+      scrollToBottom();
+    } else if (scrollContainerRef.current) {
+      // Для нового чата скроллим вверх, чтобы показать приветствие
+      scrollContainerRef.current.scrollTop = 0;
+    }
   }, [messages, isTyping]);
 
   // Voice Input Logic
   const toggleListening = () => {
     if (isListening) {
       setIsListening(false);
-      // Logic would go here to stop recognition if managed manually
       return;
     }
 
@@ -140,14 +146,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   return (
     <div className="flex flex-col h-full relative">
       {/* Header / Model Selector */}
-      <div className="h-20 flex items-center justify-between px-6 lg:px-10 z-10">
+      <div className="h-16 md:h-20 flex items-center justify-end md:justify-between px-4 md:px-10 z-10 shrink-0">
         <div className="relative">
           <button 
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-3 text-base font-bold text-charcoal bg-surface hover:bg-white px-5 py-3 rounded-full shadow-soft transition-all active:scale-95 border border-gray-50"
+            className="flex items-center gap-2 md:gap-3 text-sm md:text-base font-bold text-charcoal bg-surface hover:bg-white px-4 py-2 md:px-5 md:py-3 rounded-full shadow-soft transition-all active:scale-95 border border-gray-50"
           >
             <span className={clsx(
-              "w-2.5 h-2.5 rounded-full",
+              "w-2 h-2 md:w-2.5 md:h-2.5 rounded-full",
               selectedModel.provider === 'OpenAI' ? 'bg-green-500' :
               selectedModel.provider === 'Google' ? 'bg-blue-500' :
               'bg-purple-500'
@@ -157,7 +163,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </button>
           
           {dropdownOpen && (
-            <div className="absolute top-full left-0 mt-3 w-72 bg-surface rounded-[2rem] shadow-xl p-2 z-20 border border-gray-100 animation-fadeIn">
+            <div className="absolute top-full right-0 md:left-0 mt-3 w-72 bg-surface rounded-[2rem] shadow-xl p-2 z-20 border border-gray-100 animation-fadeIn">
                <div className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Доступные модели</div>
                <div className="max-h-[300px] overflow-y-auto">
                 {TEXT_MODELS.map(model => (
@@ -183,26 +189,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           )}
         </div>
         
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-100 rounded-full text-green-700 text-xs font-bold uppercase tracking-wide">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-100 rounded-full text-green-700 text-xs font-bold uppercase tracking-wide">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
           Без VPN
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="max-w-4xl mx-auto space-y-8 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3 md:px-4 pb-2">
+        <div className="max-w-4xl mx-auto space-y-4 md:space-y-8 py-2 md:py-4 h-full">
           {messages.length === 0 ? (
-            <div className="min-h-[60vh] flex flex-col items-center justify-center text-center animate-fadeIn">
-              <div className="w-20 h-20 bg-lime text-charcoal rounded-3xl flex items-center justify-center mb-8 shadow-glow transform -rotate-3">
-                <Bot size={40} strokeWidth={1.5} />
+            <div className="h-full flex flex-col items-center justify-center text-center animate-fadeIn px-2">
+              <div className="w-12 h-12 md:w-20 md:h-20 bg-lime text-charcoal rounded-2xl md:rounded-3xl flex items-center justify-center mb-4 md:mb-8 shadow-glow transform -rotate-3">
+                <Bot size={24} md:size={40} strokeWidth={1.5} />
               </div>
-              <h1 className="text-4xl font-bold text-charcoal mb-4 tracking-tight">Привет, я UniAI</h1>
-              <p className="text-gray-500 max-w-lg mb-12 text-lg leading-relaxed">
-                Доступ к GPT-5, Gemini, DeepSeek и другим нейросетям в одном месте. Чем могу помочь сегодня?
+              <h1 className="text-2xl md:text-4xl font-bold text-charcoal mb-2 md:mb-4 tracking-tight">Привет, я UniAI</h1>
+              <p className="text-gray-500 max-w-lg mb-6 md:mb-12 text-sm md:text-lg leading-relaxed">
+                Доступ к GPT-5, Gemini, DeepSeek и другим нейросетям в одном месте.
               </p>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl px-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4 w-full max-w-3xl px-1">
                 {[
                   { title: 'Написать код', desc: 'Python скрипт для парсинга', icon: <FileText size={20} className="text-blue-500" /> },
                   { title: 'Анализ фото', desc: 'Что изображено на картинке?', icon: <ImageIcon size={20} className="text-purple-500" /> },
@@ -211,41 +217,39 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <button 
                     key={i} 
                     onClick={() => onSendMessage(item.desc, selectedModelId, null, false)}
-                    className="bg-surface p-5 rounded-[2rem] shadow-sm border border-transparent hover:border-lime hover:shadow-soft text-left transition-all group"
+                    className="bg-surface p-3 md:p-5 rounded-2xl md:rounded-[2rem] shadow-sm border border-transparent hover:border-lime hover:shadow-soft text-left transition-all group"
                   >
-                    <div className="mb-3 p-2 bg-gray-50 rounded-xl w-fit group-hover:bg-white transition-colors">{item.icon}</div>
-                    <h3 className="font-bold text-charcoal mb-1">{item.title}</h3>
-                    <p className="text-sm text-gray-500">{item.desc}</p>
+                    <div className="mb-2 md:mb-3 p-1.5 md:p-2 bg-gray-50 rounded-xl w-fit group-hover:bg-white transition-colors">{item.icon}</div>
+                    <h3 className="font-bold text-charcoal mb-0.5 md:mb-1 text-sm md:text-base">{item.title}</h3>
+                    <p className="text-xs md:text-sm text-gray-500 line-clamp-1">{item.desc}</p>
                   </button>
                 ))}
               </div>
             </div>
           ) : (
             messages.map((msg) => {
-              // Hide empty model messages (placeholders for streaming)
-              // We check for null/empty and strip all whitespace to prevent ghost bubbles
               if (msg.role === 'model' && (!msg.text || !msg.text.replace(/\s/g, '')) && !msg.isError) return null;
 
               return (
                 <div 
                   key={msg.id} 
                   className={clsx(
-                    "flex gap-4",
+                    "flex gap-3 md:gap-4",
                     msg.role === 'user' ? "flex-row-reverse" : "flex-row"
                   )}
                 >
                   {/* Avatar */}
                   <div className={clsx(
-                    "w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm",
+                    "w-8 h-8 md:w-10 md:h-10 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm",
                     msg.role === 'user' ? "bg-charcoal text-white" : "bg-white text-charcoal border border-gray-100",
                     msg.isError && "bg-red-50 border-red-100 text-red-500"
                   )}>
-                    {msg.isError ? <AlertTriangle size={18} /> : (msg.role === 'user' ? <User size={18} /> : <Bot size={18} />)}
+                    {msg.isError ? <AlertTriangle size={16} md:size={18} /> : (msg.role === 'user' ? <User size={16} md:size={18} /> : <Bot size={16} md:size={18} />)}
                   </div>
                   
                   {/* Message Bubble */}
                   <div className={clsx(
-                    "rounded-[2rem] px-8 py-6 max-w-[85%] sm:max-w-[75%] shadow-sm text-base leading-relaxed",
+                    "rounded-[1.5rem] md:rounded-[2rem] px-5 py-4 md:px-8 md:py-6 max-w-[85%] sm:max-w-[75%] shadow-sm text-sm md:text-base leading-relaxed",
                     msg.role === 'user' 
                       ? "bg-lime text-charcoal rounded-tr-none" 
                       : "bg-white text-charcoal border border-gray-50 rounded-tl-none shadow-soft",
@@ -282,7 +286,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           )}
           {isTyping && (
             <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-surface border border-gray-100 flex-shrink-0 flex items-center justify-center">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-2xl bg-surface border border-gray-100 flex-shrink-0 flex items-center justify-center">
                 <Bot size={18} />
               </div>
               <div className="bg-white border border-gray-50 rounded-[2rem] rounded-tl-none px-6 py-4 flex items-center gap-2 shadow-soft">
@@ -292,16 +296,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} className="h-4" />
+          {/* Отступ только если есть сообщения, чтобы не ломать центрирование приветствия */}
+          {(messages.length > 0 || isTyping) && <div ref={messagesEndRef} className="h-2" />}
         </div>
       </div>
 
       {/* Input Area */}
-      <div className="p-4 lg:p-6 bg-transparent">
+      <div className="p-2 md:p-6 bg-transparent shrink-0">
         <div className="max-w-4xl mx-auto">
           <form 
             onSubmit={handleSubmit} 
-            className="relative bg-surface p-2 rounded-[2.5rem] shadow-soft border border-gray-100 flex items-end gap-2"
+            className="relative bg-surface p-1.5 md:p-2 rounded-3xl md:rounded-[2.5rem] shadow-soft border border-gray-100 flex items-end gap-1 md:gap-2"
           >
             {/* Attachment Preview */}
             {attachment && (
@@ -328,7 +333,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             )}
 
             {/* Left Buttons */}
-            <div className="flex pb-2 pl-2 gap-2">
+            <div className="flex pb-1 md:pb-2 pl-1 md:pl-2 gap-1 md:gap-2">
                <input 
                 type="file" 
                 ref={fileInputRef}
@@ -340,24 +345,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
                 className={clsx(
-                  "w-12 h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
+                  "w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
                   attachment ? "bg-blue-100 text-blue-600" : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-charcoal"
                 )}
                 title="Прикрепить файл"
               >
-                <Paperclip size={20} />
+                <Paperclip size={18} md:size={20} />
               </button>
 
                <button 
                 type="button" 
                 onClick={toggleListening}
                 className={clsx(
-                  "w-12 h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
+                  "w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
                   isListening ? "bg-red-500 text-white animate-pulse" : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-charcoal"
                 )}
                 title="Голосовой ввод"
               >
-                <Mic size={20} />
+                <Mic size={18} md:size={20} />
               </button>
             </div>
 
@@ -370,35 +375,35 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   handleSubmit(e);
                 }
               }}
-              placeholder="Спроси о чем угодно..."
-              className="flex-1 bg-transparent text-charcoal placeholder-gray-400 py-5 px-4 max-h-32 min-h-[64px] resize-none focus:outline-none text-base"
+              placeholder="Спроси что угодно..."
+              className="flex-1 bg-transparent text-charcoal placeholder-gray-400 py-[15px] md:py-5 px-2 md:px-4 max-h-32 min-h-[50px] md:min-h-[64px] resize-none focus:outline-none text-sm md:text-base"
               rows={1}
             />
             
             {/* Right Buttons */}
-            <div className="flex items-center gap-2 pb-2 pr-2">
+            <div className="flex items-center gap-1 md:gap-2 pb-1 md:pb-2 pr-1 md:pr-2">
                <button 
                 type="button" 
                 onClick={() => setIsSearchEnabled(!isSearchEnabled)}
                 className={clsx(
-                  "w-12 h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
+                  "w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
                   isSearchEnabled ? "bg-lime text-charcoal border border-lime shadow-glow" : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-charcoal"
                 )}
                 title="Поиск в интернете"
               >
-                <Globe size={20} />
+                <Globe size={18} md:size={20} />
               </button>
               
               <button 
                 type="submit" 
                 disabled={(!input.trim() && !attachment) || isTyping}
-                className="w-14 h-14 bg-charcoal text-white rounded-full flex items-center justify-center hover:bg-black hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all shadow-lg shadow-charcoal/20"
+                className="w-10 h-10 md:w-14 md:h-14 bg-charcoal text-white rounded-full flex items-center justify-center hover:bg-black hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all shadow-lg shadow-charcoal/20"
               >
-                <Send size={24} className={input.trim() ? "ml-1" : ""} />
+                <Send size={20} md:size={24} className={input.trim() ? "ml-0.5 md:ml-1" : ""} />
               </button>
             </div>
           </form>
-          <div className="text-center mt-3 text-xs font-medium text-gray-400 flex items-center justify-center gap-1">
+          <div className="text-center mt-2 md:mt-3 text-[10px] md:text-xs font-medium text-gray-400 flex items-center justify-center gap-1">
              <span className="w-1.5 h-1.5 rounded-full bg-lime"></span> UniAI работает на базе официальных API
           </div>
         </div>

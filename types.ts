@@ -1,3 +1,4 @@
+
 export type Role = 'user' | 'model';
 
 export interface Message {
@@ -25,21 +26,17 @@ export interface AIModel {
   isNew?: boolean;
   description?: string;
   maxTokens?: number;
-  geminiMap?: string; // Internal mapping to actual working Gemini model for demo purposes
+  geminiMap?: string; 
+  cost: number; // Cost in Stars
 }
 
-export interface PricingPlan {
+export interface CreditPack {
   id: string;
   name: string;
-  price: number;
-  period: 'month' | 'year';
-  tokens: number;
-  words: number;
-  images: number;
-  features: string[];
+  stars: number;
+  price: number; // Price in XTR
+  bonus?: string;
   isPopular?: boolean;
-  isPro?: boolean;
-  invoicePayload?: string; // Payload for Telegram Invoice
 }
 
 export type ViewState = 'chat' | 'images' | 'pricing' | 'docs';

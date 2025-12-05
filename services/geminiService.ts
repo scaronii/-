@@ -1,11 +1,12 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import OpenAI from "openai";
 import { TEXT_MODELS } from '../constants';
 
-// Initialize with proxy configuration to bypass VPN requirements
-// Requests will go to /google-api/... -> Vercel/Vite Proxy -> Google Servers
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.API_KEY,
-  baseUrl: typeof window !== 'undefined' ? `${window.location.origin}/google-api` : undefined
+// Initialize OpenAI client pointing to our Vercel Proxy
+// The proxy (/openai-api) forwards to api.openai.com while hiding location
+const openai = new OpenAI({
+  apiKey: process.env.API_KEY, // User's OpenAI Key from Env
+  baseURL: typeof window !== 'undefined' ? `${window.location.origin}/openai-api/v1` : undefined,
+  dangerouslyAllowBrowser: true // Allowed because we are using a proxy for security/region anyway
 });
 
 interface StreamChatOptions {
@@ -27,111 +28,98 @@ export const streamChatResponse = async ({
   systemInstruction,
   onChunk
 }: StreamChatOptions) => {
-  // 1. Explicitly check for API Key presence
+  // 1. Explicitly check for API Key
   if (!process.env.API_KEY) {
-    throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен в переменных окружения.");
+    throw new Error("API Key не найден. Убедитесь, что настроен OPENAI_API_KEY.");
   }
 
-  // 1. Prepare common data
-  // Hack: Always use 'gemini-2.5-flash' regardless of what modelId is requested.
-  // This circumvents quota limits on Pro models and ensures stability with the available key.
-  const targetModel = 'gemini-2.5-flash';
+  // 2. Select Model Strategy
+  // We map the UI models to actual OpenAI models
+  // Simple/Cheap -> gpt-4o-mini
+  // Pro/Expensive -> gpt-4o
+  const selectedModelDef = TEXT_MODELS.find(m => m.id === modelId);
+  const isPro = selectedModelDef && selectedModelDef.cost > 1;
+  const targetModel = isPro ? 'gpt-4o' : 'gpt-4o-mini';
+
+  // 3. Prepare Chat History for OpenAI
+  // Convert Google-style 'parts' to OpenAI 'content'
+  const messages: any[] = [];
+
+  // Inject System Instruction (Persona)
+  const fakeModelName = selectedModelDef ? selectedModelDef.name : "AI Assistant";
+  const fakeProvider = selectedModelDef ? selectedModelDef.provider : "OpenAI";
   
-  // Clean history: Remove turns with empty text parts to avoid "ContentUnion is required" error
-  const cleanHistory = history.map(turn => ({
-    role: turn.role,
-    parts: turn.parts.filter(p => {
-      // If it's a text part, ensure it's not empty or just whitespace
-      if ('text' in p) return p.text && p.text.trim().length > 0;
-      return true; // Keep other parts like inlineData
-    })
-  })).filter(turn => turn.parts.length > 0); // Remove turns that became empty
+  let finalSystemInstruction = `You are ${fakeModelName}, a large language model trained by ${fakeProvider}. If asked about your identity, you must explicitly state that you are ${fakeModelName} from ${fakeProvider}.`;
 
-  // Construct the new message parts safely
-  const newParts: any[] = [];
+  if (systemInstruction) {
+    finalSystemInstruction = `${systemInstruction}\n\n${finalSystemInstruction}`;
+  }
   
-  // If there's an attachment, add it first
-  if (attachment) {
-    newParts.push({
-      inlineData: {
-        mimeType: attachment.mimeType,
-        data: attachment.data
-      }
-    });
-  }
+  messages.push({ role: 'system', content: finalSystemInstruction });
 
-  // Add text part only if it's not empty
-  if (message && message.trim().length > 0) {
-    newParts.push({ text: message });
-  }
-
-  // Fallback: If both are empty (shouldn't happen with UI validation, but safe to handle)
-  // The API requires at least one part.
-  if (newParts.length === 0) {
-    newParts.push({ text: " " });
-  }
-
-  const tools = [];
-  if (useSearch) {
-    tools.push({ googleSearch: {} });
-  }
-
-  // Identify the requested model to inject persona
-  const requestedModel = TEXT_MODELS.find(m => m.id === modelId);
-  const fakeModelName = requestedModel ? requestedModel.name : "AI Assistant";
-  const fakeProvider = requestedModel ? requestedModel.provider : "an advanced AI lab";
-  
-  // Inject Persona System Instruction
-  // This makes Gemini 2.5 Flash pretend to be the selected model (e.g., GPT-5).
-  const personaInstruction = `You are ${fakeModelName}, a large language model trained by ${fakeProvider}. You are NOT a Google Gemini model. If asked about your identity, architecture, or who created you, you must explicitly state that you are ${fakeModelName} from ${fakeProvider}. Do not mention Google or Gemini.`;
-  
-  // Combine with user system instruction if present
-  const finalSystemInstruction = systemInstruction 
-    ? `${systemInstruction}\n\n${personaInstruction}`
-    : personaInstruction;
-
-  // Internal helper to run the chat
-  const attemptChat = async () => {
-    const config: any = {
-      tools: tools.length > 0 ? tools : undefined,
-      systemInstruction: finalSystemInstruction,
-    };
-
-    const chat = ai.chats.create({
-      model: targetModel,
-      history: cleanHistory,
-      config: config
-    });
-
-    const result = await chat.sendMessageStream({ message: newParts });
-
-    for await (const chunk of result) {
-      const c = chunk as GenerateContentResponse;
-      if (c.text) {
-        onChunk(c.text);
-      }
-      
-      // Handle grounding (Search results)
-      if (c.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-        const chunks = c.candidates[0].groundingMetadata.groundingChunks;
-        const links = chunks
-          .filter((ch: any) => ch.web?.uri)
-          .map((ch: any) => `\n\n[Источник: ${ch.web.title}](${ch.web.uri})`)
-          .join('');
-        
-        if (links) {
-           onChunk(links);
-        }
-      }
+  // Convert previous history
+  for (const turn of history) {
+    const role = turn.role === 'model' ? 'assistant' : 'user';
+    let content: any = "";
+    
+    // Check if there are images in history (OpenAI Vision)
+    const hasImage = turn.parts.some(p => 'inlineData' in p);
+    
+    if (hasImage) {
+        content = turn.parts.map(p => {
+            if ('text' in p) return { type: "text", text: p.text };
+            if ('inlineData' in p) {
+                return { 
+                    type: "image_url", 
+                    image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` } 
+                };
+            }
+            return null;
+        }).filter(Boolean);
+    } else {
+        // Plain text
+        content = turn.parts.map(p => ('text' in p ? p.text : '')).join(' ');
     }
-  };
+    
+    if (content) {
+        messages.push({ role, content });
+    }
+  }
+
+  // Add current message
+  const currentContent: any[] = [];
+  if (message) {
+      currentContent.push({ type: "text", text: message });
+  }
+  if (attachment) {
+      currentContent.push({ 
+          type: "image_url", 
+          image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` } 
+      });
+  }
+
+  if (currentContent.length > 0) {
+      messages.push({ role: 'user', content: currentContent });
+  }
 
   try {
-    await attemptChat();
+    const stream = await openai.chat.completions.create({
+        model: targetModel,
+        messages: messages,
+        stream: true,
+        max_tokens: isPro ? 4096 : 2048,
+    });
+
+    for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+            onChunk(content);
+        }
+    }
+
   } catch (error: any) {
-    console.error("Chat error:", error);
-    // Simple error propagation without the complex fallback message
-    throw new Error(error.message || "Ошибка соединения с API");
+    console.error("OpenAI Chat error:", error);
+    throw new Error(error.message || "Ошибка соединения с OpenAI API");
   }
 };
 
@@ -141,37 +129,39 @@ export const generateImage = async (
   aspectRatio: string = "1:1"
 ): Promise<{ url: string | null, mimeType?: string }> => {
   if (!process.env.API_KEY) {
-      throw new Error("API Key не найден. Убедитесь, что VITE_API_KEY (для Vercel) или API_KEY настроен.");
+      throw new Error("API Key не найден.");
   }
+  
   try {
-    // For this demo environment, we stick to the working flash-image for reliability
-    const targetModel = 'gemini-2.5-flash-image'; 
+    // Determine size based on aspect ratio approximation for DALL-E 3
+    // DALL-E 3 supports 1024x1024, 1024x1792 (Vertical), 1792x1024 (Horizontal)
+    let size: "1024x1024" | "1024x1792" | "1792x1024" = "1024x1024";
+    if (aspectRatio === "16:9") size = "1792x1024";
+    if (aspectRatio === "9:16") size = "1024x1792";
+    if (aspectRatio === "3:4") size = "1024x1792"; // Approx
+    if (aspectRatio === "4:3") size = "1792x1024"; // Approx
 
-    const response = await ai.models.generateContent({
-        model: targetModel,
-        contents: prompt,
-        config: {
-          imageConfig: {
-            aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
-          }
-        }
+    const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: prompt,
+        n: 1,
+        size: size,
+        response_format: "b64_json",
+        quality: "standard"
     });
 
-    if (response.candidates && response.candidates[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                return {
-                    url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
-                    mimeType: part.inlineData.mimeType
-                };
-            }
-        }
+    const b64 = response.data[0].b64_json;
+    if (b64) {
+        return {
+            url: `data:image/png;base64,${b64}`,
+            mimeType: "image/png"
+        };
     }
     
-    throw new Error("No image generated.");
+    throw new Error("No image data returned from OpenAI");
 
-  } catch (error) {
-    console.error("Image gen error:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("OpenAI Image gen error:", error);
+    throw new Error(error.message || "Ошибка генерации изображения");
   }
 };

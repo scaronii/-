@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatInterface } from './components/ChatInterface';
@@ -8,6 +9,7 @@ import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
 import { Menu } from 'lucide-react';
+import { TEXT_MODELS } from './constants';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('chat');
@@ -23,7 +25,8 @@ const App: React.FC = () => {
   
   // Telegram & User Data State
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
-  const [balance, setBalance] = useState<number>(50000); 
+  const [balance, setBalance] = useState<number>(0); 
+  const [messageCount, setMessageCount] = useState<number>(0); // For free tier tracking
 
   // Initialize App
   useEffect(() => {
@@ -48,6 +51,10 @@ const App: React.FC = () => {
         // Load Balance
         const bal = await userService.getBalance(user.id);
         setBalance(bal);
+        
+        // Load Message Count (for free tier)
+        const count = await userService.getUserMessageCount(user.id);
+        setMessageCount(count);
 
         // Load Chats
         const history = await userService.getUserChats(user.id);
@@ -104,8 +111,14 @@ const App: React.FC = () => {
   const handleSendMessage = async (text: string, modelId: string, attachment: { mimeType: string; data: string } | null, useSearch: boolean) => {
     if (!currentSessionId) return;
 
-    if (balance <= 0) {
-      alert("Недостаточно токенов. Пожалуйста, пополните баланс.");
+    const model = TEXT_MODELS.find(m => m.id === modelId);
+    const cost = model?.cost || 1;
+    
+    // Check Free Tier (First 10 messages on cheap models are free)
+    const isFree = messageCount < 10 && cost === 1;
+
+    if (!isFree && balance < cost) {
+      alert(`Недостаточно звезд. Стоимость запроса: ${cost} ★. Ваш баланс: ${balance} ★.`);
       setCurrentView('pricing');
       return;
     }
@@ -132,6 +145,7 @@ const App: React.FC = () => {
     // Save User Msg to DB
     if (tgUser) {
        userService.saveMessage(currentSessionId, 'user', userMsg.text);
+       setMessageCount(prev => prev + 1); // Increment count immediately
     }
 
     setIsTyping(true);
@@ -184,14 +198,12 @@ const App: React.FC = () => {
       if (tgUser) {
         await userService.saveMessage(currentSessionId, 'model', accumulatedText);
         
-        // Deduct tokens & Sync Balance
-        const estimatedCost = 50 + Math.ceil((text.length + accumulatedText.length) / 4);
-        const newBalance = await userService.deductTokens(tgUser.id, estimatedCost);
-        if (newBalance !== undefined) setBalance(newBalance);
-      } else {
-        const estimatedCost = 50 + Math.ceil((text.length + accumulatedText.length) / 4);
-        setBalance(prev => Math.max(0, prev - estimatedCost));
-      }
+        // Deduct Stars if not free
+        if (!isFree) {
+            const newBalance = await userService.deductTokens(tgUser.id, cost);
+            if (newBalance !== undefined) setBalance(newBalance);
+        }
+      } 
 
     } catch (error: any) {
       console.error("Error sending message", error);
@@ -226,21 +238,21 @@ const App: React.FC = () => {
           />
         );
       case 'images':
-        return <ImageGenerator />;
+        return <ImageGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
       case 'pricing':
         return <Pricing tgUser={tgUser} />;
       case 'docs':
         return (
-          <div className="p-6 lg:p-12 overflow-y-auto h-full">
+          <div className="p-4 md:p-6 lg:p-12 overflow-y-auto h-full pt-16 md:pt-6">
             <div className="max-w-5xl mx-auto space-y-10 pb-12">
-              <div className="bg-charcoal text-white rounded-[2.5rem] p-10 text-center shadow-xl relative overflow-hidden group">
+              <div className="bg-charcoal text-white rounded-[2.5rem] p-6 md:p-10 text-center shadow-xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-lime/20 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-lime/30 transition-colors duration-500"></div>
-                <h1 className="text-4xl font-bold mb-4 relative z-10">База знаний UniAI</h1>
-                <p className="text-gray-300 text-lg relative z-10">Профессиональные гайды и инструкции. Учитесь бесплатно.</p>
+                <h1 className="text-3xl md:text-4xl font-bold mb-4 relative z-10">База знаний UniAI</h1>
+                <p className="text-gray-300 text-base md:text-lg relative z-10">Профессиональные гайды и инструкции. Учитесь бесплатно.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-surface p-8 rounded-[2rem] shadow-soft border border-gray-50">
-                    <h3 className="text-2xl font-bold text-charcoal mb-4">Начало работы</h3>
+                 <div className="bg-surface p-6 md:p-8 rounded-[2rem] shadow-soft border border-gray-50">
+                    <h3 className="text-xl md:text-2xl font-bold text-charcoal mb-4">Начало работы</h3>
                     <p className="text-gray-600">Инструкция по использованию нейросетей...</p>
                  </div>
               </div>
@@ -253,7 +265,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-offwhite text-charcoal overflow-hidden font-sans">
+    <div className="flex h-[100dvh] w-screen bg-offwhite text-charcoal overflow-hidden font-sans">
       
       {/* Sidebar Navigation */}
       <Sidebar 
@@ -270,15 +282,18 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 h-full relative flex flex-col min-w-0 md:p-4">
-        {/* Mobile Header Trigger */}
-        <div className="md:hidden absolute top-4 left-4 z-20 flex items-center gap-2">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100">
-            <Menu size={24} />
+        {/* Mobile Header Trigger & Balance */}
+        <div className="md:hidden absolute top-3 left-3 z-20 flex items-center gap-2">
+          <button onClick={() => setSidebarOpen(true)} className="p-2.5 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100 active:scale-95 transition-transform">
+            <Menu size={22} />
           </button>
           {tgUser && (
-             <div className="bg-surface px-3 py-2 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1">
-               <span className="w-2 h-2 bg-lime rounded-full"></span>
-               {balance.toLocaleString()} T
+             <div 
+               className="bg-surface px-3 py-2.5 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1.5 active:scale-95 transition-transform"
+               onClick={() => setCurrentView('pricing')}
+             >
+               <span className="w-2 h-2 bg-lime rounded-full animate-pulse"></span>
+               {balance.toLocaleString()} ★
              </div>
           )}
         </div>
@@ -287,7 +302,8 @@ const App: React.FC = () => {
         <div className="hidden md:block absolute top-6 right-8 z-20">
              <div className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('pricing')}>
                <span>Баланс:</span>
-               <span className="text-lime-700">{balance.toLocaleString()} токенов</span>
+               <span className="text-lime-700">{balance.toLocaleString()} ★</span>
+               {messageCount < 10 && <span className="text-[10px] bg-lime px-2 py-0.5 rounded-full">FREE {10 - messageCount}</span>}
              </div>
         </div>
         

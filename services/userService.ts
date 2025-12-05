@@ -1,3 +1,4 @@
+
 import { supabase } from '../lib/supabase';
 import { ChatSession, Message, TelegramUser } from '../types';
 
@@ -15,7 +16,7 @@ export const userService = {
         .from('users')
         .select('*')
         .eq('telegram_id', tgUser.id)
-        .maybeSingle(); // maybeSingle не выбрасывает ошибку если записи нет
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching user:', error);
@@ -24,14 +25,15 @@ export const userService = {
 
       if (!existingUser) {
         console.log(`Creating new user: ${tgUser.id}`);
-        // Создаем нового
+        // Создаем нового с 0 балансом (для покупок) 
+        // Бесплатные сообщения считаем отдельно через count
         const { data, error: insertError } = await supabase
           .from('users')
           .insert([{
             telegram_id: tgUser.id,
             first_name: tgUser.first_name,
             username: tgUser.username,
-            balance: 50000 // Стартовый бонус
+            balance: 0 
           }])
           .select()
           .single();
@@ -52,7 +54,7 @@ export const userService = {
 
   // Получение баланса
   async getBalance(userId: number) {
-    if (!supabase) return 50000;
+    if (!supabase) return 0;
     
     try {
       const { data, error } = await supabase
@@ -61,10 +63,44 @@ export const userService = {
         .eq('telegram_id', userId)
         .single();
       
-      if (error) return 50000;
-      return data?.balance ?? 50000;
+      if (error) return 0;
+      return data?.balance ?? 0;
     } catch (e) {
-      return 50000;
+      return 0;
+    }
+  },
+
+  // Подсчет количества сообщений пользователя (для бесплатного лимита)
+  async getUserMessageCount(userId: number) {
+    if (!supabase) return 100; // Если нет базы, считаем что лимит исчерпан
+    
+    try {
+      // Получаем все чаты пользователя
+      const { data: chats } = await supabase
+        .from('chats')
+        .select('id')
+        .eq('user_id', userId);
+        
+      if (!chats || chats.length === 0) return 0;
+      
+      const chatIds = chats.map(c => c.id);
+      
+      // Считаем сообщения пользователя во всех этих чатах
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('chat_id', chatIds)
+        .eq('role', 'user');
+        
+      if (error) {
+        console.error("Error counting messages:", error);
+        return 100;
+      }
+      
+      return count || 0;
+    } catch (e) {
+      console.error("Error in getUserMessageCount:", e);
+      return 100;
     }
   },
 
@@ -104,7 +140,6 @@ export const userService = {
 
       if (error || !chats) return [];
 
-      // Для каждого чата грузим сообщения (в реальном проекте лучше это делать лениво при клике)
       const sessions: ChatSession[] = [];
       
       for (const chat of chats) {
@@ -164,8 +199,6 @@ export const userService = {
   async saveMessage(chatId: string, role: 'user' | 'model', text: string) {
     if (!supabase) return;
     
-    // Если chatId это временный ID (timestamp), мы не можем писать в БД. 
-    // Проверка на UUID v4
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
     if (!isUUID) return;
 

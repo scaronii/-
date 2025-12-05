@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/google-api/(.*)",
-      "destination": "https://generativelanguage.googleapis.com/$1"
+      "source": "/openai-api/(.*)",
+      "destination": "/api/proxy"
     },
     {
       "source": "/(.*)",

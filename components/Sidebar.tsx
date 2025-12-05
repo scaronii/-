@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
@@ -38,15 +39,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Overlay */}
       <div 
         className={clsx(
-          "fixed inset-0 bg-charcoal/20 backdrop-blur-sm z-20 md:hidden transition-opacity",
+          "fixed inset-0 bg-charcoal/20 backdrop-blur-sm z-40 md:hidden transition-opacity",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={toggleOpen}
       />
 
       <aside className={clsx(
-        "fixed md:static inset-y-4 left-4 z-30 w-72 bg-surface rounded-3xl shadow-soft flex flex-col transition-transform duration-300 transform border border-gray-100/50 md:ml-4 md:my-4",
-        isOpen ? "translate-x-0" : "-translate-x-[110%] md:translate-x-0"
+        "fixed md:static inset-y-4 left-4 z-50 w-72 bg-surface rounded-3xl shadow-soft flex flex-col transition-transform duration-300 transform border border-gray-100/50 md:ml-4 md:my-4",
+        isOpen ? "translate-x-0" : "-translate-x-[120%] md:translate-x-0"
       )}>
         {/* Header */}
         <div className="p-6 flex items-center justify-between">
