@@ -3,10 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UniAI - ChatGPT и Нейросети на русском</title>
+    <title>UniAI - Агрегатор Нейросетей</title>
+    <meta name="description" content="Единая платформа доступа к GPT-5, Gemini, Claude и другим топовым нейросетям на русском языке.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS (CDN for simplicity, in a real production setup consider postcss) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -81,17 +83,19 @@
       .markdown-body th, .markdown-body td { border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; }
       .markdown-body th { background: #f8fafc; font-weight: 600; }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "clsx": "https://aistudiocdn.com/clsx@^2.1.1",
-    "react-markdown": "https://esm.sh/react-markdown@9?bundle",
-    "remark-gfm": "https://esm.sh/remark-gfm@4?bundle"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "remark-gfm": "https://aistudiocdn.com/remark-gfm@^4.0.1",
+    "clsx": "https://aistudiocdn.com/clsx@^2.1.1"
   }
 }
 </script>
@@ -103,7 +107,7 @@
        </div>
     </div>
     
-    <!-- Polyfill for process.env to prevent runtime crashes in browser -->
+    <!-- Polyfill for process.env to prevent runtime crashes in browser environments that expect node globals -->
     <script>
       window.process = window.process || { env: {} };
     </script>

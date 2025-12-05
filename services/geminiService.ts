@@ -4,7 +4,6 @@ import { TEXT_MODELS } from '../constants';
 // Helper to get API key from either Vite env or Process env
 const getApiKey = () => {
   // Check for VITE_API_KEY in import.meta.env (Vite/Vercel)
-  // We use type casting to avoid TS errors if types aren't configured
   if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_KEY) {
     return (import.meta as any).env.VITE_API_KEY;
   }
@@ -16,9 +15,13 @@ const getApiKey = () => {
 };
 
 const apiKey = getApiKey();
-// Initialize with retrieved key or empty string to prevent immediate crash,
-// though we validate before calls.
-const ai = new GoogleGenAI({ apiKey: apiKey || 'missing_key' });
+
+// Initialize with proxy configuration to bypass VPN requirements
+// Requests will go to /google-api/... -> Vercel/Vite Proxy -> Google Servers
+const ai = new GoogleGenAI({ 
+  apiKey: apiKey || 'missing_key',
+  baseUrl: typeof window !== 'undefined' ? `${window.location.origin}/google-api` : undefined
+});
 
 interface StreamChatOptions {
   modelId: string;
