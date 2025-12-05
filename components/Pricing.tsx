@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Zap, Star, AlertCircle } from 'lucide-react';
+import { Check, Zap, Star, AlertCircle, Loader2 } from 'lucide-react';
 import { PLANS, FAQ_ITEMS } from '../constants';
 import { clsx } from 'clsx';
 import { TelegramUser } from '../types';
@@ -10,8 +10,9 @@ interface PricingProps {
 
 export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
   const [billingPeriod, setBillingPeriod] = useState<'month' | 'year'>('month');
+  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
 
-  const handleBuy = (plan: any) => {
+  const handleBuy = async (plan: any) => {
     // 1. Check if running inside Telegram
     if (!(window as any).Telegram?.WebApp?.initData) {
       alert("Для оплаты откройте приложение через Telegram бота.");
@@ -19,27 +20,51 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
     }
 
     const tg = (window as any).Telegram.WebApp;
+    setLoadingPlanId(plan.id);
 
-    // 2. Send Invoice Request to your Backend (which calls Telegram API)
-    // Since we don't have a real backend connected in this demo, we simulate the flow:
-    // User clicks button -> WebApp sends data to bot -> Bot sends invoice.
-    
-    // In a real app, you would do:
-    // await fetch('/api/create-invoice', { body: JSON.stringify({ planId: plan.id, userId: tgUser.id }) })
-    // tg.openInvoice(invoiceLink);
+    // Calculate actual price
+    // Monthly price is constant. 
+    // If Year is selected, we usually charge for 12 months with discount.
+    // For this implementation, let's treat the transaction as a one-time purchase for the selected period.
+    const monthlyPrice = plan.price;
+    const yearlyPrice = Math.round(plan.price * 0.8 * 12);
+    const finalPrice = billingPeriod === 'year' ? yearlyPrice : monthlyPrice;
 
-    // Using `openLink` with a start parameter to trigger invoice in bot chat is a common pattern for WebApps without direct invoice integration 
-    // OR directly using openInvoice if you have the link.
-    
-    // Demo Simulation:
-    alert(`Запрос на покупку тарифа "${plan.name}" отправлен! В реальном приложении здесь откроется окно оплаты Telegram.`);
-    
-    // Example of how to trigger invoice if you generated one via API:
-    // tg.openInvoice(INVOICE_URL, (status) => {
-    //   if (status === 'paid') {
-    //     tg.close();
-    //   }
-    // });
+    try {
+        const response = await fetch('/api/create-invoice', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                planId: plan.id, 
+                userId: tgUser?.id, 
+                price: finalPrice,
+                title: `${plan.name} (${billingPeriod === 'year' ? '1 год' : '1 месяц'})`,
+                description: `Оплата тарифа ${plan.name}. Доступ на ${billingPeriod === 'year' ? '1 год' : '1 месяц'}.`
+            }) 
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            alert("Ошибка создания счета: " + data.error);
+            setLoadingPlanId(null);
+            return;
+        }
+
+        // Open invoice inside Telegram
+        tg.openInvoice(data.invoiceLink, (status: string) => {
+            setLoadingPlanId(null);
+            if (status === 'paid') {
+                tg.close();
+                // Optional: Trigger a UI refresh or confetti here
+            }
+        });
+
+    } catch (e) {
+        console.error(e);
+        alert("Ошибка соединения. Проверьте интернет.");
+        setLoadingPlanId(null);
+    }
   };
 
   return (
@@ -49,7 +74,7 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-bold text-charcoal mb-6 tracking-tight">Пополните баланс</h1>
           <p className="text-gray-500 max-w-2xl mx-auto mb-10 text-lg">
-            Оплата через Telegram Stars или банковской картой РФ. Безопасно и мгновенно.
+            Оплата через Telegram Stars (★). Безопасно, мгновенно и без привязки карт сторонних сервисов.
           </p>
           
           {!tgUser && (
@@ -107,8 +132,9 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
               </div>
 
               <div className="flex items-baseline gap-1 mb-8">
-                <span className="text-4xl font-bold text-charcoal">
-                  {billingPeriod === 'year' ? Math.round(plan.price * 0.8) : plan.price}₽
+                <span className="text-4xl font-bold text-charcoal flex items-center gap-1">
+                  {billingPeriod === 'year' ? Math.round(plan.price * 0.8) : plan.price}
+                  <Star size={24} className="text-yellow-500 fill-yellow-500" />
                 </span>
                 <span className="text-gray-400 font-medium">/мес</span>
               </div>
@@ -138,16 +164,27 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
 
               <button 
                 onClick={() => handleBuy(plan)}
-                disabled={!tgUser}
+                disabled={!tgUser || loadingPlanId === plan.id}
                 className={clsx(
-                  "w-full py-4 rounded-2xl font-bold transition-all transform active:scale-95",
+                  "w-full py-4 rounded-2xl font-bold transition-all transform active:scale-95 flex items-center justify-center gap-2",
                   plan.isPopular
                     ? "bg-charcoal text-white hover:bg-black shadow-lg hover:shadow-xl"
                     : "bg-gray-100 text-charcoal hover:bg-gray-200",
-                  !tgUser && "opacity-50 cursor-not-allowed"
+                  (!tgUser || loadingPlanId === plan.id) && "opacity-50 cursor-not-allowed"
                 )}
               >
-                {tgUser ? `Купить за ${plan.price}₽` : "Только в Telegram"}
+                {loadingPlanId === plan.id ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  <>
+                    {tgUser ? (
+                      <>
+                        Купить за {billingPeriod === 'year' ? Math.round(plan.price * 0.8 * 12) : plan.price}
+                        <Star size={16} className="text-yellow-400 fill-yellow-400" />
+                      </>
+                    ) : "Только в Telegram"}
+                  </>
+                )}
               </button>
             </div>
           ))}

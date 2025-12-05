@@ -25,7 +25,7 @@ export const PLANS: PricingPlan[] = [
   {
     id: 'trial',
     name: 'Пробный',
-    price: 250,
+    price: 150, // Stars (approx 250-300 RUB)
     period: 'month',
     tokens: 50000,
     words: 2000,
@@ -35,7 +35,7 @@ export const PLANS: PricingPlan[] = [
   {
     id: 'standard',
     name: 'Стандартный',
-    price: 490,
+    price: 250, // Stars (approx 500 RUB)
     period: 'month',
     tokens: 150000,
     words: 6000,
@@ -45,7 +45,7 @@ export const PLANS: PricingPlan[] = [
   {
     id: 'optimal',
     name: 'Оптимальный',
-    price: 1490,
+    price: 750, // Stars (approx 1500 RUB)
     period: 'month',
     tokens: 500000,
     words: 20000,
@@ -56,7 +56,7 @@ export const PLANS: PricingPlan[] = [
   {
     id: 'pro',
     name: 'Профессиональный',
-    price: 2990,
+    price: 1500, // Stars (approx 3000 RUB)
     period: 'month',
     tokens: 1500000,
     words: 60000,
@@ -68,6 +68,7 @@ export const PLANS: PricingPlan[] = [
 
 export const FAQ_ITEMS = [
   { q: 'Нужен ли VPN?', a: 'Нет, наш сервис работает в России без VPN. Мы выступаем официальным агрегатором.' },
+  { q: 'Что такое Telegram Stars?', a: 'Это внутренняя валюта Telegram. Вы можете купить звезды через Google Play, App Store или @PremiumBot.' },
   { q: 'Как считаются токены?', a: '1 токен ≈ 0.75 слова. Генерация изображений стоит от 5000 токенов.' },
-  { q: 'Можно ли сменить тариф?', a: 'Да, вы можете сменить тариф в любой момент. Неиспользованные токены переносятся.' },
+  { q: 'Можно ли сменить тариф?', a: 'Да, вы можете сменить тариф в любой момент. Неиспользованные токены суммируются.' },
 ];
