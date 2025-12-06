@@ -18,6 +18,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState(VIDEO_MODELS[0].id);
   const [aspectRatio, setAspectRatio] = useState('1280x720'); // Landscape
+  const [duration, setDuration] = useState<4 | 8 | 12>(8); // 8s default
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>('');
@@ -28,7 +29,8 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const modelInfo = VIDEO_MODELS.find(m => m.id === selectedModel);
-  const cost = modelInfo?.cost || 100;
+  const costPerSecond = modelInfo?.cost || 35;
+  const totalCost = costPerSecond * duration;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,8 +55,8 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
 
   const handleGenerate = async () => {
     if (!prompt && !attachment) return;
-    if (balance < cost) {
-       setError(`Недостаточно средств. Стоимость: ${cost} ★`);
+    if (balance < totalCost) {
+       setError(`Недостаточно средств. Стоимость: ${totalCost} ★`);
        return;
     }
 
@@ -67,15 +69,15 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
     try {
       // 1. Deduct tokens first
       if (tgUser) {
-         const newBal = await userService.deductTokens(tgUser.id, cost);
+         const newBal = await userService.deductTokens(tgUser.id, totalCost);
          if (newBal !== undefined) onUpdateBalance(newBal);
       } else {
-         onUpdateBalance(balance - cost);
+         onUpdateBalance(balance - totalCost);
       }
 
       // 2. Start generation
       const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
-      const task = await generateVideo(selectedModel, prompt || "Video based on image", aspectRatio, 5, currentAttachment);
+      const task = await generateVideo(selectedModel, prompt || "Video based on image", aspectRatio, duration, currentAttachment);
       
       // Clear attachment
       setAttachment(null);
@@ -151,7 +153,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                     className="w-full bg-gray-50 text-charcoal font-medium border border-gray-200 rounded-2xl px-5 py-3.5 appearance-none focus:ring-2 focus:ring-lime focus:outline-none transition-all cursor-pointer hover:bg-gray-100 text-sm md:text-base"
                   >
                     {VIDEO_MODELS.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.cost} ★)</option>
+                      <option key={m.id} value={m.id}>{m.name} ({m.cost} ★/сек)</option>
                     ))}
                   </select>
                 </div>
@@ -193,10 +195,30 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-charcoal mb-3 uppercase tracking-wider">Длительность</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[4, 8, 12].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setDuration(s as 4|8|12)}
+                      className={clsx(
+                        "py-3 rounded-2xl text-sm font-bold border transition-all flex items-center justify-center gap-2",
+                        duration === s
+                          ? "bg-charcoal border-charcoal text-white shadow-md" 
+                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      {s} сек
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-gray-100">
                  <div className="flex justify-between items-center bg-red-50 p-4 rounded-2xl">
                     <span className="text-sm font-bold text-red-800">Стоимость</span>
-                    <span className="text-charcoal font-bold">{cost} ★</span>
+                    <span className="text-charcoal font-bold">{totalCost} ★</span>
                  </div>
               </div>
             </div>
@@ -256,7 +278,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                   className="w-full sm:w-auto bg-charcoal hover:bg-black text-white px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:scale-105 active:scale-95 text-base"
                 >
                   {isGenerating ? <RefreshCw className="animate-spin" size={20} /> : <Film size={20} />}
-                  Создать видео
+                  Создать видео ({totalCost} ★)
                 </button>
               </div>
             </div>

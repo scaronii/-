@@ -26,8 +26,8 @@ export const IMAGE_MODELS: AIModel[] = [
 ];
 
 export const VIDEO_MODELS: AIModel[] = [
-  { id: 'sora-2', name: 'Sora 2', provider: 'OpenAI', type: 'video', description: 'Быстрая генерация видео', cost: 100 }, // Price doubled (50 -> 100)
-  { id: 'sora-2-pro', name: 'Sora 2 Pro', provider: 'OpenAI', type: 'video', isNew: true, description: 'Кинематографическое качество', cost: 300 }, // Price doubled (150 -> 300)
+  { id: 'sora-2', name: 'Sora 2', provider: 'OpenAI', type: 'video', description: 'Быстрая генерация видео', cost: 35 }, // Price per second
+  { id: 'sora-2-pro', name: 'Sora 2 Pro', provider: 'OpenAI', type: 'video', isNew: true, description: 'Кинематографическое качество', cost: 100 }, // Price per second
 ];
 
 export const CREDIT_PACKS: CreditPack[] = [
@@ -63,7 +63,7 @@ export const CREDIT_PACKS: CreditPack[] = [
 ];
 
 export const FAQ_ITEMS = [
-  { q: 'Как работает оплата?', a: 'Вы покупаете Звезды (Stars). Простые модели стоят 1 звезду за сообщение, мощные (Pro) — 10 звезд. Генерация видео — от 100 звезд.' },
+  { q: 'Как работает оплата?', a: 'Вы покупаете Звезды (Stars). Простые модели стоят 1 звезду за сообщение, мощные (Pro) — 10 звезд. Генерация видео — от 140 звезд.' },
   { q: 'Есть ли бесплатный доступ?', a: 'Да! Первые 10 сообщений с простыми моделями (Nano, Flash) абсолютно бесплатны.' },
   { q: 'Что такое Telegram Stars?', a: 'Это официальная валюта Telegram. Ее можно купить через банковскую карту внутри мессенджера.' },
   { q: 'Сгорают ли звезды?', a: 'Нет, купленные звезды остаются на балансе навсегда.' },

@@ -136,6 +136,7 @@ export const generateImage = async (
     let finalPrompt = prompt;
 
     // Vision Remix: If there is an attachment, use GPT-4o to describe it first
+    // This allows us to use DALL-E 3 for high quality "variations" or "edits" based on description
     if (attachment) {
         const descriptionResponse = await openai.chat.completions.create({
             model: "gpt-4o",
@@ -193,7 +194,7 @@ export const generateVideo = async (
   modelId: string,
   prompt: string,
   size: string = "1280x720",
-  seconds: number = 5,
+  seconds: 4 | 8 | 12 = 8, // API only accepts 4, 8, or 12
   attachment?: { mimeType: string; data: string } | null
 ) => {
   if (!process.env.API_KEY) {
@@ -209,7 +210,7 @@ export const generateVideo = async (
     if (attachment) {
         const formData = new FormData();
         formData.append('model', modelId);
-        formData.append('prompt', prompt);
+        formData.append('prompt', prompt || "Video based on image");
         formData.append('size', size);
         formData.append('seconds', seconds.toString());
         
