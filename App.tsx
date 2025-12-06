@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { ImageGenerator } from './components/ImageGenerator';
+import { VideoGenerator } from './components/VideoGenerator';
 import { Pricing } from './components/Pricing';
 import { SettingsModal } from './components/SettingsModal';
+import { Profile } from './components/Profile';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
@@ -19,19 +21,17 @@ const App: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Settings State
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [systemInstruction, setSystemInstruction] = useState('');
   
-  // Telegram & User Data State
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [balance, setBalance] = useState<number>(0); 
-  const [messageCount, setMessageCount] = useState<number>(0); // For free tier tracking
+  const [messageCount, setMessageCount] = useState<number>(0);
+  const [imageCount, setImageCount] = useState<number>(0);
+  const [videoCount, setVideoCount] = useState<number>(0);
 
-  // Initialize App
   useEffect(() => {
     const initApp = async () => {
-      // 1. Check Telegram
       let user = null;
       if ((window as any).Telegram?.WebApp) {
         const tg = (window as any).Telegram.WebApp;
@@ -43,20 +43,20 @@ const App: React.FC = () => {
         }
       }
 
-      // 2. Load Data (from DB or Local)
       if (user) {
-        // Init user in DB
         await userService.initUser(user);
-        
-        // Load Balance
         const bal = await userService.getBalance(user.id);
         setBalance(bal);
         
-        // Load Message Count (for free tier)
-        const count = await userService.getUserMessageCount(user.id);
-        setMessageCount(count);
+        const msgCount = await userService.getUserMessageCount(user.id);
+        setMessageCount(msgCount);
+        
+        const imgCount = await userService.getUserImageCount(user.id);
+        setImageCount(imgCount);
 
-        // Load Chats
+        const vidCount = await userService.getUserVideoCount(user.id);
+        setVideoCount(vidCount);
+
         const history = await userService.getUserChats(user.id);
         if (history.length > 0) {
           setSessions(history);
@@ -65,7 +65,6 @@ const App: React.FC = () => {
           await createNewChatSession(user.id);
         }
       } else {
-        // Fallback for non-telegram users (local state only)
         handleNewChat();
       }
     };
@@ -75,13 +74,10 @@ const App: React.FC = () => {
 
   const createNewChatSession = async (userId?: number) => {
     let newId = Date.now().toString();
-    
     if (userId) {
-       // Create in DB immediately to get UUID
        const dbId = await userService.createChat(userId, 'Новый чат', selectedModelId);
        if (dbId) newId = dbId;
     }
-
     const newSession: ChatSession = {
       id: newId,
       title: 'Новый чат',
@@ -90,7 +86,6 @@ const App: React.FC = () => {
       modelId: selectedModelId,
       systemInstruction: systemInstruction
     };
-    
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newId);
     return newId;
@@ -114,7 +109,6 @@ const App: React.FC = () => {
     const model = TEXT_MODELS.find(m => m.id === modelId);
     const cost = model?.cost || 1;
     
-    // Check Free Tier (First 10 messages on cheap models are free)
     const isFree = messageCount < 10 && cost === 1;
 
     if (!isFree && balance < cost) {
@@ -130,7 +124,6 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    // Update UI immediately
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
         return {
@@ -142,10 +135,9 @@ const App: React.FC = () => {
       return s;
     }));
     
-    // Save User Msg to DB
     if (tgUser) {
        userService.saveMessage(currentSessionId, 'user', userMsg.text);
-       setMessageCount(prev => prev + 1); // Increment count immediately
+       setMessageCount(prev => prev + 1);
     }
 
     setIsTyping(true);
@@ -194,11 +186,8 @@ const App: React.FC = () => {
         }
       });
 
-      // Save AI Msg to DB
       if (tgUser) {
         await userService.saveMessage(currentSessionId, 'model', accumulatedText);
-        
-        // Deduct Stars if not free
         if (!isFree) {
             const newBalance = await userService.deductTokens(tgUser.id, cost);
             if (newBalance !== undefined) setBalance(newBalance);
@@ -206,7 +195,6 @@ const App: React.FC = () => {
       } 
 
     } catch (error: any) {
-      console.error("Error sending message", error);
       setSessions(prev => prev.map(s => {
         if (s.id === currentSessionId) {
           const updatedMessages = s.messages.map(m => 
@@ -238,9 +226,39 @@ const App: React.FC = () => {
           />
         );
       case 'images':
-        return <ImageGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
+        return (
+          <ImageGenerator 
+             balance={balance} 
+             onUpdateBalance={setBalance} 
+             tgUser={tgUser} 
+             onImageGenerated={() => setImageCount(prev => prev + 1)}
+          />
+        );
+      case 'video':
+        return (
+          <VideoGenerator
+             balance={balance}
+             onUpdateBalance={setBalance}
+             tgUser={tgUser}
+             onVideoGenerated={() => setVideoCount(prev => prev + 1)}
+          />
+        );
       case 'pricing':
         return <Pricing tgUser={tgUser} />;
+      case 'profile':
+        return (
+          <Profile 
+            user={tgUser}
+            balance={balance}
+            messageCount={messageCount}
+            imageCount={imageCount}
+            videoCount={videoCount}
+            sessionsCount={sessions.length}
+            systemInstruction={systemInstruction}
+            onSaveSystemInstruction={setSystemInstruction}
+            onNavigateToPricing={() => setCurrentView('pricing')}
+          />
+        );
       case 'docs':
         return (
           <div className="p-4 md:p-6 lg:p-12 overflow-y-auto h-full pt-16 md:pt-6">
@@ -266,8 +284,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] w-screen bg-offwhite text-charcoal overflow-hidden font-sans">
-      
-      {/* Sidebar Navigation */}
       <Sidebar 
         currentView={currentView}
         onNavigate={setCurrentView}
@@ -279,10 +295,7 @@ const App: React.FC = () => {
         toggleOpen={() => setSidebarOpen(!sidebarOpen)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-
-      {/* Main Content */}
       <main className="flex-1 h-full relative flex flex-col min-w-0 md:p-4">
-        {/* Mobile Header Trigger & Balance */}
         <div className="md:hidden absolute top-3 left-3 z-20 flex items-center gap-2">
           <button onClick={() => setSidebarOpen(true)} className="p-2.5 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100 active:scale-95 transition-transform">
             <Menu size={22} />
@@ -290,29 +303,27 @@ const App: React.FC = () => {
           {tgUser && (
              <div 
                className="bg-surface px-3 py-2.5 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1.5 active:scale-95 transition-transform"
-               onClick={() => setCurrentView('pricing')}
+               onClick={() => setCurrentView('profile')}
              >
                <span className="w-2 h-2 bg-lime rounded-full animate-pulse"></span>
                {balance.toLocaleString()} ★
              </div>
           )}
         </div>
-
-        {/* Desktop Balance Badge */}
         <div className="hidden md:block absolute top-6 right-8 z-20">
-             <div className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('pricing')}>
+             <div 
+               className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" 
+               onClick={() => setCurrentView('profile')}
+             >
                <span>Баланс:</span>
                <span className="text-lime-700">{balance.toLocaleString()} ★</span>
                {messageCount < 10 && <span className="text-[10px] bg-lime px-2 py-0.5 rounded-full">FREE {10 - messageCount}</span>}
              </div>
         </div>
-        
         <div className="h-full bg-transparent md:bg-white md:rounded-[2.5rem] md:shadow-soft md:border md:border-gray-50 overflow-hidden relative">
           {renderContent()}
         </div>
       </main>
-
-      {/* Settings Modal */}
       <SettingsModal 
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}

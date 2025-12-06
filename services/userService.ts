@@ -11,7 +11,6 @@ export const userService = {
     }
 
     try {
-      // Проверяем, есть ли пользователь
       const { data: existingUser, error } = await supabase
         .from('users')
         .select('*')
@@ -25,15 +24,13 @@ export const userService = {
 
       if (!existingUser) {
         console.log(`Creating new user: ${tgUser.id}`);
-        // Создаем нового с 0 балансом (для покупок) 
-        // Бесплатные сообщения считаем отдельно через count
         const { data, error: insertError } = await supabase
           .from('users')
           .insert([{
             telegram_id: tgUser.id,
             first_name: tgUser.first_name,
             username: tgUser.username,
-            balance: 0 
+            balance: 100 
           }])
           .select()
           .single();
@@ -52,17 +49,14 @@ export const userService = {
     }
   },
 
-  // Получение баланса
   async getBalance(userId: number) {
     if (!supabase) return 0;
-    
     try {
       const { data, error } = await supabase
         .from('users')
         .select('balance')
         .eq('telegram_id', userId)
         .single();
-      
       if (error) return 0;
       return data?.balance ?? 0;
     } catch (e) {
@@ -70,46 +64,93 @@ export const userService = {
     }
   },
 
-  // Подсчет количества сообщений пользователя (для бесплатного лимита)
   async getUserMessageCount(userId: number) {
-    if (!supabase) return 100; // Если нет базы, считаем что лимит исчерпан
-    
+    if (!supabase) return 100;
     try {
-      // Получаем все чаты пользователя
       const { data: chats } = await supabase
         .from('chats')
         .select('id')
         .eq('user_id', userId);
         
       if (!chats || chats.length === 0) return 0;
-      
       const chatIds = chats.map(c => c.id);
       
-      // Считаем сообщения пользователя во всех этих чатах
       const { count, error } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .in('chat_id', chatIds)
         .eq('role', 'user');
         
-      if (error) {
-        console.error("Error counting messages:", error);
-        return 100;
-      }
-      
+      if (error) return 100;
       return count || 0;
     } catch (e) {
-      console.error("Error in getUserMessageCount:", e);
       return 100;
     }
   },
+  
+  async getUserImageCount(userId: number) {
+    if (!supabase) return 0;
+    try {
+      const { count, error } = await supabase
+        .from('generated_images')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      if (error) return 0;
+      return count || 0;
+    } catch (e) {
+      return 0;
+    }
+  },
 
-  // Списание токенов
+  async getUserVideoCount(userId: number) {
+    if (!supabase) return 0;
+    try {
+      const { count, error } = await supabase
+        .from('generated_videos')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      if (error) return 0;
+      return count || 0;
+    } catch (e) {
+      return 0;
+    }
+  },
+  
+  async saveGeneratedImage(userId: number, url: string, prompt: string, model: string) {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('generated_images')
+        .insert([{
+          user_id: userId,
+          url: url,
+          prompt: prompt,
+          model: model
+        }]);
+    } catch (e) {
+      console.error("Error saving generated image:", e);
+    }
+  },
+
+  async saveGeneratedVideo(userId: number, url: string, prompt: string, model: string) {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('generated_videos')
+        .insert([{
+          user_id: userId,
+          url: url,
+          prompt: prompt,
+          model: model
+        }]);
+    } catch (e) {
+      console.error("Error saving generated video:", e);
+    }
+  },
+
   async deductTokens(userId: number, amount: number) {
     if (!supabase) return;
-    
     try {
-      // Получаем текущий баланс
       const current = await this.getBalance(userId);
       const newBalance = Math.max(0, current - amount);
 
@@ -119,7 +160,6 @@ export const userService = {
         .eq('telegram_id', userId);
 
       if (error) console.error("Error deducting tokens:", error);
-        
       return newBalance;
     } catch (e) {
       console.error("Error in deductTokens:", e);
@@ -127,10 +167,8 @@ export const userService = {
     }
   },
 
-  // Получение списка чатов
   async getUserChats(userId: number): Promise<ChatSession[]> {
     if (!supabase) return [];
-
     try {
       const { data: chats, error } = await supabase
         .from('chats')
@@ -141,7 +179,6 @@ export const userService = {
       if (error || !chats) return [];
 
       const sessions: ChatSession[] = [];
-      
       for (const chat of chats) {
         const { data: messages } = await supabase
           .from('messages')
@@ -162,18 +199,14 @@ export const userService = {
           }))
         });
       }
-
       return sessions;
     } catch (e) {
-      console.error("Error loading chats:", e);
       return [];
     }
   },
 
-  // Создание нового чата
   async createChat(userId: number, title: string, modelId: string): Promise<string | null> {
     if (!supabase) return Date.now().toString();
-
     try {
       const { data, error } = await supabase
         .from('chats')
@@ -184,24 +217,17 @@ export const userService = {
         }])
         .select()
         .single();
-
-      if (error) {
-        console.error("Error creating chat:", error);
-        return null;
-      }
+      if (error) return null;
       return data.id;
     } catch (e) {
       return null;
     }
   },
 
-  // Сохранение сообщения
   async saveMessage(chatId: string, role: 'user' | 'model', text: string) {
     if (!supabase) return;
-    
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
     if (!isUUID) return;
-
     try {
       await supabase
         .from('messages')

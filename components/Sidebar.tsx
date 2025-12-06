@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -29,8 +29,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'chat', label: 'Чат', icon: MessageSquare },
-    { id: 'images', label: 'Генерация', icon: ImageIcon, badge: 'NEW' },
-    { id: 'pricing', label: 'Тарифы', icon: CreditCard },
+    { id: 'images', label: 'Генерация', icon: ImageIcon },
+    { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
+    { id: 'pricing', label: 'Магазин', icon: CreditCard },
     { id: 'docs', label: 'Инструкции', icon: BookOpen },
   ];
 
@@ -148,17 +149,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User Profile */}
         <div className="p-4 mt-2">
-          <div className="bg-gray-50 rounded-2xl p-3 flex items-center gap-3 border border-gray-100 cursor-pointer hover:border-gray-200 transition-colors">
+          <div 
+            className={clsx(
+               "bg-gray-50 rounded-2xl p-3 flex items-center gap-3 border border-gray-100 cursor-pointer hover:border-gray-200 transition-all active:scale-[0.98]",
+               currentView === 'profile' && "bg-gray-100 border-gray-200"
+            )}
+            onClick={() => {
+              onNavigate('profile');
+              if (window.innerWidth < 768) toggleOpen();
+            }}
+          >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-lime to-green-300 flex items-center justify-center text-charcoal font-bold text-sm shadow-sm">
-              G
+              <Settings size={20} />
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-bold text-charcoal truncate">Гость</p>
-              <p className="text-xs text-gray-500 truncate">Пробный план</p>
+              <p className="text-sm font-bold text-charcoal truncate">Личный кабинет</p>
+              <p className="text-xs text-gray-500 truncate">Профиль и настройки</p>
             </div>
-            <button onClick={onOpenSettings} className="text-gray-400 hover:text-charcoal p-1 hover:bg-white rounded-lg transition-all">
-               <Settings size={18} />
-            </button>
+            <ChevronRight size={18} className="text-gray-400" />
           </div>
         </div>
       </aside>

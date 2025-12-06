@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X } from 'lucide-react';
 import { IMAGE_MODELS } from '../constants';
 import { generateImage } from '../services/geminiService';
 import { clsx } from 'clsx';
@@ -11,6 +11,7 @@ interface ImageGeneratorProps {
   balance: number;
   onUpdateBalance: (newBalance: number) => void;
   tgUser: TelegramUser | null;
+  onImageGenerated?: () => void;
 }
 
 const RANDOM_PROMPTS = [
@@ -23,7 +24,7 @@ const RANDOM_PROMPTS = [
   "Сюрреалистичный пейзаж с летающими островами и водопадами"
 ];
 
-export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdateBalance, tgUser }) => {
+export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdateBalance, tgUser, onImageGenerated }) => {
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState(IMAGE_MODELS[0].id);
   const [aspectRatio, setAspectRatio] = useState('1:1');
@@ -31,6 +32,9 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{url: string, prompt: string}[]>([]);
+  const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const modelInfo = IMAGE_MODELS.find(m => m.id === selectedModel);
   const cost = modelInfo?.cost || 50;
@@ -38,6 +42,27 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const handleRandomPrompt = () => {
     const random = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
     setPrompt(random);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Data = (e.target?.result as string).split(',')[1];
+        setAttachment({
+          name: file.name,
+          mimeType: file.type,
+          data: base64Data
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
   };
 
   const handleGenerate = async () => {
@@ -53,15 +78,23 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
     setGeneratedImage(null);
 
     try {
-      const result = await generateImage(selectedModel, `Draw the following: ${prompt}`, aspectRatio);
+      // Pass attachment if present for Vision Remix
+      const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
+      
+      const result = await generateImage(selectedModel, prompt, aspectRatio, currentAttachment);
       if (result.url) {
         setGeneratedImage(result.url);
         setHistory(prev => [{ url: result.url!, prompt }, ...prev]);
+        setAttachment(null); // Clear attachment after successful gen
         
         // Deduct balance
         if (tgUser) {
            const newBal = await userService.deductTokens(tgUser.id, cost);
            if (newBal !== undefined) onUpdateBalance(newBal);
+           
+           // Save to DB and update stats
+           userService.saveGeneratedImage(tgUser.id, result.url!, prompt, selectedModel);
+           if (onImageGenerated) onImageGenerated();
         } else {
            // Local demo mode
            onUpdateBalance(balance - cost);
@@ -177,7 +210,26 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
           {/* Right Panel: Prompt & Result */}
           <div className="lg:col-span-8 space-y-6">
             {/* Prompt Input */}
-            <div className="bg-surface p-2 rounded-[2.5rem] shadow-soft border border-gray-50">
+            <div className="bg-surface p-2 rounded-[2.5rem] shadow-soft border border-gray-50 relative">
+               {/* Attachment Preview */}
+               {attachment && (
+                <div className="absolute bottom-full left-4 mb-3 bg-surface rounded-2xl p-3 flex items-center gap-3 shadow-lg border border-gray-100 animate-fadeIn z-10">
+                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden">
+                     <img src={`data:${attachment.mimeType};base64,${attachment.data}`} alt="preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0 max-w-[150px]">
+                    <div className="text-sm font-bold truncate text-charcoal">{attachment.name}</div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={removeAttachment}
+                    className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -185,12 +237,32 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                 className="w-full bg-transparent text-charcoal placeholder-gray-400 resize-none p-6 text-base md:text-lg focus:outline-none min-h-[120px] md:min-h-[140px] rounded-[2rem]"
               />
               <div className="flex flex-col sm:flex-row items-center justify-between px-4 pb-4 gap-4">
-                <button 
-                  onClick={handleRandomPrompt}
-                  className="px-4 py-2 rounded-full text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors w-full sm:w-auto"
-                >
-                  Случайный промпт
-                </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                   <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      accept="image/*"
+                   />
+                   <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className={clsx(
+                         "w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full transition-all hover:scale-105",
+                         attachment ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                      title="Прикрепить референс (Vision Remix)"
+                   >
+                      <Paperclip size={20} />
+                   </button>
+                   <button 
+                     onClick={handleRandomPrompt}
+                     className="px-4 py-3 rounded-full text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex-1 sm:flex-none"
+                   >
+                     Случайный промпт
+                   </button>
+                </div>
+                
                 <button
                   onClick={handleGenerate}
                   disabled={!prompt || isGenerating}

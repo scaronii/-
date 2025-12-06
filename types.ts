@@ -22,7 +22,7 @@ export interface AIModel {
   id: string;
   name: string;
   provider: 'OpenAI' | 'Google' | 'Anthropic' | 'DeepSeek' | 'xAI' | 'Moonshot' | 'Recraft' | 'Flux';
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'video';
   isNew?: boolean;
   description?: string;
   maxTokens?: number;
@@ -39,7 +39,7 @@ export interface CreditPack {
   isPopular?: boolean;
 }
 
-export type ViewState = 'chat' | 'images' | 'pricing' | 'docs';
+export type ViewState = 'chat' | 'images' | 'video' | 'pricing' | 'docs' | 'profile';
 
 export interface TelegramUser {
   id: number;
