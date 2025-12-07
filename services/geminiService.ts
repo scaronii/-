@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { TEXT_MODELS } from '../constants';
 
@@ -225,7 +224,7 @@ export const generateVideo = async (
             model: modelId,
             prompt: prompt,
             size: size,
-            seconds: seconds
+            seconds: seconds.toString() // Fix: Convert to string for API
         });
     }
 
