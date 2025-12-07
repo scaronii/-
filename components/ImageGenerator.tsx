@@ -65,6 +65,29 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
     setAttachment(null);
   };
 
+  const handleDownload = async (url: string) => {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `uniai-image-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    } catch (e) {
+        // Fallback for some browsers or cross-origin issues
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `uniai-image-${Date.now()}.png`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt) return;
 
@@ -288,13 +311,12 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                 <>
                   <img src={generatedImage} alt="Generated" className="w-full h-full object-contain rounded-[2rem]" />
                   <div className="absolute bottom-6 right-6 flex gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
-                    <a 
-                      href={generatedImage} 
-                      download="generated-image.png"
+                    <button 
+                      onClick={() => handleDownload(generatedImage)}
                       className="bg-white text-charcoal p-3 md:p-4 rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
                       <Download size={20} md:size={24} />
-                    </a>
+                    </button>
                   </div>
                 </>
               ) : error ? (

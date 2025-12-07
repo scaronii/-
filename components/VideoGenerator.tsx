@@ -53,6 +53,28 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
     setAttachment(null);
   };
 
+  const handleDownload = async (url: string) => {
+     try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `uniai-video-${Date.now()}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    } catch (e) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `uniai-video-${Date.now()}.mp4`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt && !attachment) return;
     if (balance < totalCost) {
@@ -306,13 +328,14 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                      loop 
                      className="max-w-full max-h-[500px] rounded-[2rem] shadow-lg"
                   />
-                  <a 
-                    href={generatedVideo} 
-                    download="generated-video.mp4"
-                    className="absolute bottom-6 right-6 bg-white text-charcoal p-3 rounded-full shadow-lg hover:scale-110 transition-transform z-10"
-                  >
-                    <Download size={24} />
-                  </a>
+                  <div className="absolute bottom-6 right-6 flex gap-3">
+                     <button 
+                       onClick={() => handleDownload(generatedVideo!)}
+                       className="bg-white text-charcoal p-3 rounded-full shadow-lg hover:scale-110 transition-transform z-10"
+                     >
+                       <Download size={24} />
+                     </button>
+                  </div>
                 </div>
               ) : error ? (
                 <div className="bg-red-50 text-red-500 text-center p-6 md:p-8 rounded-3xl max-w-md mx-4">

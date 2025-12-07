@@ -148,6 +148,27 @@ export const userService = {
     }
   },
 
+  async getUserContent(userId: number, type: 'image' | 'video') {
+    if (!supabase) return [];
+    try {
+      const table = type === 'image' ? 'generated_images' : 'generated_videos';
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error(`Error fetching ${type} content:`, error);
+        return [];
+      }
+      return data || [];
+    } catch (e) {
+      console.error(`Error in getUserContent (${type}):`, e);
+      return [];
+    }
+  },
+
   async deductTokens(userId: number, amount: number) {
     if (!supabase) return;
     try {
