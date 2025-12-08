@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2 } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -14,6 +14,7 @@ interface SidebarProps {
   isOpen: boolean;
   toggleOpen: () => void;
   onOpenSettings: () => void;
+  onDeleteChat: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,7 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   isOpen,
   toggleOpen,
-  onOpenSettings
+  onOpenSettings,
+  onDeleteChat
 }) => {
   const navItems = [
     { id: 'chat', label: 'Чат', icon: MessageSquare },
@@ -126,22 +128,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-sm text-gray-400 italic px-2">Нет истории</div>
             ) : (
               sessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => {
-                    onNavigate('chat');
-                    onSelectSession(session.id);
-                    if (window.innerWidth < 768) toggleOpen();
-                  }}
-                  className={clsx(
-                    "w-full text-left px-4 py-2.5 rounded-xl text-sm truncate transition-colors",
-                    currentSessionId === session.id
-                      ? "bg-gray-100 text-charcoal font-medium"
-                      : "text-gray-500 hover:bg-gray-50 hover:text-charcoal"
-                  )}
-                >
-                  {session.title || "Новый чат"}
-                </button>
+                <div key={session.id} className="relative group">
+                  <button
+                    onClick={() => {
+                      onNavigate('chat');
+                      onSelectSession(session.id);
+                      if (window.innerWidth < 768) toggleOpen();
+                    }}
+                    className={clsx(
+                      "w-full text-left px-4 py-2.5 rounded-xl text-sm truncate transition-colors pr-9",
+                      currentSessionId === session.id
+                        ? "bg-gray-100 text-charcoal font-medium"
+                        : "text-gray-500 hover:bg-gray-50 hover:text-charcoal"
+                    )}
+                  >
+                    {session.title || "Новый чат"}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteChat(session.id);
+                    }}
+                    className={clsx(
+                      "absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all",
+                      currentSessionId === session.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    )}
+                    title="Удалить чат"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               ))
             )}
           </div>

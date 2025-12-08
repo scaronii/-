@@ -109,7 +109,8 @@ export const streamChatResponse = async ({
   if (attachment) {
       currentContent.push({ 
           type: "image_url", 
-          image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` } 
+          image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` 
+      } 
       });
   }
 
@@ -182,19 +183,12 @@ export const generateImage = async (
         prompt: finalPrompt,
         n: 1,
         size: size,
-        response_format: "b64_json"
+        // We do NOT use b64_json because many OpenRouter models (Flux, etc) only return URLs
     });
 
-    // OpenRouter / OpenAI standard response
-    const b64 = response.data[0].b64_json;
     const url = response.data[0].url;
 
-    if (b64) {
-        return {
-            url: `data:image/png;base64,${b64}`,
-            mimeType: "image/png"
-        };
-    } else if (url) {
+    if (url) {
         return {
             url: url,
             mimeType: "image/png"
@@ -205,6 +199,7 @@ export const generateImage = async (
 
   } catch (error: any) {
     console.error("OpenRouter Image Error:", error);
+    // Propagate the actual API error message to the UI
     throw new Error(error.message || "Ошибка генерации изображения");
   }
 };

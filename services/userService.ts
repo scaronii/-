@@ -260,5 +260,28 @@ export const userService = {
     } catch (e) {
       console.error("Error saving message:", e);
     }
+  },
+
+  async deleteChat(chatId: string) {
+    if (!supabase) return false;
+    try {
+      // Assuming Cascade Delete is set up in Supabase for messages
+      // If not, we would delete messages here first:
+      // await supabase.from('messages').delete().eq('chat_id', chatId);
+      
+      const { error } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', chatId);
+
+      if (error) {
+        console.error('Error deleting chat:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error("Error in deleteChat:", e);
+      return false;
+    }
   }
 };

@@ -101,6 +101,30 @@ const App: React.FC = () => {
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
+  const handleDeleteChat = async (sessionId: string) => {
+    if (!window.confirm("Вы уверены, что хотите удалить этот чат?")) return;
+
+    const prevSessions = [...sessions];
+    const newSessions = sessions.filter(s => s.id !== sessionId);
+    setSessions(newSessions);
+
+    if (currentSessionId === sessionId) {
+       if (newSessions.length > 0) {
+           setCurrentSessionId(newSessions[0].id);
+       } else {
+           handleNewChat();
+       }
+    }
+
+    if (tgUser) {
+        const success = await userService.deleteChat(sessionId);
+        if (!success) {
+            // Optional: revert logic could go here, but simple alert is often enough
+            console.error("Failed to delete chat from DB");
+        }
+    }
+  };
+
   const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0];
 
   const handleSendMessage = async (text: string, modelId: string, attachment: { mimeType: string; data: string } | null, useSearch: boolean) => {
@@ -294,6 +318,7 @@ const App: React.FC = () => {
         isOpen={sidebarOpen}
         toggleOpen={() => setSidebarOpen(!sidebarOpen)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onDeleteChat={handleDeleteChat}
       />
       <main className="flex-1 h-full relative flex flex-col min-w-0 md:p-4">
         <div className="md:hidden absolute top-3 left-3 z-20 flex items-center gap-2">

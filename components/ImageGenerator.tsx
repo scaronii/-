@@ -126,8 +126,8 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
       } else {
         setError('Не удалось создать изображение. Попробуйте другой запрос.');
       }
-    } catch (err) {
-      setError('Ошибка генерации. Проверьте соединение или выберите другую модель.');
+    } catch (err: any) {
+      setError(err.message || 'Ошибка генерации. Проверьте соединение или выберите другую модель.');
     } finally {
       setIsGenerating(false);
     }
@@ -146,7 +146,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
               </span>
               Генерация Изображений
             </h1>
-            <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте искусство с помощью Nano Banana Pro, Flux и других.</p>
+            <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте искусство с помощью FLUX 1.1 Pro, Recraft и DALL-E.</p>
           </div>
           <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 text-sm font-medium text-gray-500 w-fit">
              Баланс: <span className="text-charcoal font-bold">{balance.toLocaleString()}</span> ★

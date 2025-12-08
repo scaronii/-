@@ -103,40 +103,22 @@ export const TEXT_MODELS: AIModel[] = [
 ];
 
 export const IMAGE_MODELS: AIModel[] = [
-  // Google / Nano Banana Series
+  // Flux Series (Top Tier on OpenRouter)
   { 
-    id: 'google/gemini-2.5-flash-image', 
-    name: 'Nano Banana', 
-    provider: 'Google', 
+    id: 'black-forest-labs/flux-1.1-pro', 
+    name: 'FLUX 1.1 Pro', 
+    provider: 'Flux', 
     type: 'image', 
-    description: 'Быстрая генерация', 
-    cost: 30 
-  },
-  { 
-    id: 'google/gemini-3-pro-image-preview', 
-    name: 'Nano Banana Pro', 
-    provider: 'Google', 
-    type: 'image', 
-    description: 'Высокая детализация', 
-    cost: 60 
-  },
-  { 
-    id: 'google/imagen-4-fast', 
-    name: 'Google Imagen 4 Fast', 
-    provider: 'Google', 
-    type: 'image', 
-    description: 'Скоростная генерация', 
+    description: 'Фотореализм (Top Tier)', 
     cost: 40 
   },
-
-  // OpenAI
   { 
-    id: 'openai/gpt-5-image', 
-    name: 'OpenAI GPT Image-1', 
-    provider: 'OpenAI', 
+    id: 'black-forest-labs/flux-schnell', 
+    name: 'FLUX Schnell', 
+    provider: 'Flux', 
     type: 'image', 
-    description: 'Новый стандарт качества', 
-    cost: 80 
+    description: 'Быстрая генерация', 
+    cost: 10 
   },
 
   // Recraft
@@ -145,50 +127,28 @@ export const IMAGE_MODELS: AIModel[] = [
     name: 'Recraft V3', 
     provider: 'Recraft', 
     type: 'image', 
-    description: 'Растровая графика и дизайн', 
-    cost: 60 
-  },
-  { 
-    id: 'recraft-ai/recraft-v3-svg', 
-    name: 'Recraft V3 SVG', 
-    provider: 'Recraft', 
-    type: 'image', 
-    description: 'Векторная графика (SVG)', 
-    cost: 70 
+    description: 'Вектор и дизайн', 
+    cost: 30 
   },
 
-  // Flux
+  // OpenAI
   { 
-    id: 'black-forest-labs/flux-1.1-pro', 
-    name: 'FLUX 1.1 Pro', 
-    provider: 'Flux', 
+    id: 'openai/dall-e-3', 
+    name: 'DALL-E 3', 
+    provider: 'OpenAI', 
     type: 'image', 
-    description: 'Фотореализм', 
-    cost: 100 
+    description: 'Точное следование промпту', 
+    cost: 60 
   },
 
   // Others
   { 
-    id: 'ideogram/ideogram-v3-turbo', 
-    name: 'Ideogram V3 Turbo', 
+    id: 'ideogram/ideogram-v2', 
+    name: 'Ideogram V2', 
     provider: 'Ideogram', 
     type: 'image', 
     description: 'Типографика и текст', 
-    cost: 50 
-  },
-  { 
-    id: 'qwen/qwen-vl-max', 
-    name: 'Qwen Image', 
-    provider: 'Qwen', 
-    type: 'image', 
-    cost: 40 
-  },
-  { 
-    id: 'bytedance/seedream-4', 
-    name: 'ByteDance Seedream 4', 
-    provider: 'ByteDance', 
-    type: 'image', 
-    cost: 45 
+    cost: 25 
   },
 ];
 
