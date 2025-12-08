@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -18,7 +19,8 @@ export default defineConfig(({ mode }) => {
     define: {
       // Polyfill для Node.js process.env
       'process.env': {
-         API_KEY: processEnv.VITE_API_KEY || processEnv.NEXT_PUBLIC_API_KEY || processEnv.API_KEY || processEnv.OPENAI_API_KEY || '',
+         API_KEY: processEnv.OPENROUTER_API_KEY || processEnv.VITE_API_KEY || processEnv.NEXT_PUBLIC_API_KEY || '',
+         OPENROUTER_API_KEY: processEnv.OPENROUTER_API_KEY || '',
          
          // Supabase URL
          NEXT_PUBLIC_SUPABASE_URL: processEnv.NEXT_PUBLIC_SUPABASE_URL || processEnv.VITE_SUPABASE_URL || '',
@@ -37,7 +39,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy requests to OpenAI via local dev server to bypass CORS/Region locks during dev
         '/openai-api': {
-          target: 'https://api.openai.com',
+          target: 'https://openrouter.ai/api',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/openai-api/, '')
         }

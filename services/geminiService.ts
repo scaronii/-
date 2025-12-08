@@ -1,12 +1,30 @@
+
 import OpenAI from "openai";
 import { TEXT_MODELS } from '../constants';
 
-// Initialize OpenAI client pointing to our Vercel Proxy
+// Initialize OpenAI client pointing to our OpenRouter Proxy
 const openai = new OpenAI({
-  apiKey: process.env.API_KEY, 
+  apiKey: "dummy", // Key is injected by the proxy for security
   baseURL: typeof window !== 'undefined' ? `${window.location.origin}/openai-api/v1` : undefined,
   dangerouslyAllowBrowser: true 
 });
+
+// Debug utility to fetch all available OpenRouter models
+// Call `await window.logAvailableModels()` in console to see the list
+if (typeof window !== 'undefined') {
+  (window as any).logAvailableModels = async () => {
+    try {
+      const response = await fetch(`${window.location.origin}/openai-api/v1/models`);
+      const data = await response.json();
+      console.log("=== Available OpenRouter Models ===");
+      console.log(data);
+      console.table(data.data.map((m: any) => ({ id: m.id, name: m.name, pricing: m.pricing })));
+      return data;
+    } catch (e) {
+      console.error("Failed to fetch models", e);
+    }
+  };
+}
 
 interface StreamChatOptions {
   modelId: string;
@@ -38,46 +56,44 @@ export const streamChatResponse = async ({
   systemInstruction,
   onChunk
 }: StreamChatOptions) => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key не найден. Убедитесь, что настроен OPENAI_API_KEY.");
-  }
-
+  
+  // 1. Determine Model ID
+  // Note: We use the exact ID from constants. If it doesn't exist on OpenRouter yet (e.g. GPT-5), 
+  // OpenRouter might return a 404 or fallback depending on their config.
   const selectedModelDef = TEXT_MODELS.find(m => m.id === modelId);
-  const isPro = selectedModelDef && selectedModelDef.cost > 1;
-  const targetModel = isPro ? 'gpt-4o' : 'gpt-4o-mini';
+  const targetModel = selectedModelDef ? selectedModelDef.id : 'google/gemini-2.0-flash-001';
 
+  // 2. Build Messages Array
   const messages: any[] = [];
 
-  const fakeModelName = selectedModelDef ? selectedModelDef.name : "AI Assistant";
-  const fakeProvider = selectedModelDef ? selectedModelDef.provider : "OpenAI";
-  
-  let finalSystemInstruction = `You are ${fakeModelName}, a large language model trained by ${fakeProvider}. If asked about your identity, you must explicitly state that you are ${fakeModelName} from ${fakeProvider}.`;
-
+  // System Prompt
   if (systemInstruction) {
-    finalSystemInstruction = `${systemInstruction}\n\n${finalSystemInstruction}`;
+    messages.push({ role: 'system', content: systemInstruction });
   }
-  
-  messages.push({ role: 'system', content: finalSystemInstruction });
 
+  // Convert History
   for (const turn of history) {
     const role = turn.role === 'model' ? 'assistant' : 'user';
-    let content: any = "";
+    let content: any = null;
     
-    const hasImage = turn.parts.some(p => 'inlineData' in p);
-    
-    if (hasImage) {
-        content = turn.parts.map(p => {
-            if ('text' in p) return { type: "text", text: p.text };
-            if ('inlineData' in p) {
-                return { 
-                    type: "image_url", 
-                    image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` } 
-                };
+    // Check for images in history
+    const imagePart = turn.parts.find(p => 'inlineData' in p);
+    const textPart = turn.parts.find(p => 'text' in p);
+
+    if (imagePart && 'inlineData' in imagePart) {
+        // Multimodal message
+        content = [
+            { type: "text", text: ('text' in textPart! ? textPart.text : "") },
+            { 
+              type: "image_url", 
+              image_url: { 
+                  url: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` 
+              } 
             }
-            return null;
-        }).filter(Boolean);
-    } else {
-        content = turn.parts.map(p => ('text' in p ? p.text : '')).join(' ');
+        ];
+    } else if (textPart && 'text' in textPart) {
+        // Text only
+        content = textPart.text;
     }
     
     if (content) {
@@ -85,6 +101,7 @@ export const streamChatResponse = async ({
     }
   }
 
+  // Current Message
   const currentContent: any[] = [];
   if (message) {
       currentContent.push({ type: "text", text: message });
@@ -105,7 +122,10 @@ export const streamChatResponse = async ({
         model: targetModel,
         messages: messages,
         stream: true,
-        max_tokens: isPro ? 4096 : 2048,
+        // OpenRouter handles limits, but we set a safe default
+        max_tokens: 4096,
+        // search is handled by OpenRouter plugins if model supports it (e.g. perplexity)
+        // or we rely on the model's knowledge
     });
 
     for await (const chunk of stream) {
@@ -116,8 +136,8 @@ export const streamChatResponse = async ({
     }
 
   } catch (error: any) {
-    console.error("OpenAI Chat error:", error);
-    throw new Error(error.message || "Ошибка соединения с OpenAI API");
+    console.error("OpenRouter Chat Error:", error);
+    throw new Error(error.message || "Ошибка соединения с OpenRouter");
   }
 };
 
@@ -127,22 +147,19 @@ export const generateImage = async (
   aspectRatio: string = "1:1",
   attachment?: { mimeType: string; data: string } | null
 ): Promise<{ url: string | null, mimeType?: string }> => {
-  if (!process.env.API_KEY) {
-      throw new Error("API Key не найден.");
-  }
   
   try {
     let finalPrompt = prompt;
 
-    // Vision Remix: If there is an attachment, use GPT-4o to describe it first
-    // This allows us to use DALL-E 3 for high quality "variations" or "edits" based on description
+    // Vision Remix: Use GPT-4o to describe attachment if present
+    // OpenRouter supports this seamlessly via the chat endpoint
     if (attachment) {
         const descriptionResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "openai/gpt-4o",
             messages: [
                 { 
                     role: "system", 
-                    content: "You are a visual prompt engineer. Describe the attached image in extreme detail, focusing on style, composition, lighting, and subjects. Then, incorporate the user's request into this description to create a new DALL-E 3 prompt. Return ONLY the prompt." 
+                    content: "You are a visual prompt engineer. Describe the attached image in extreme detail. Then, incorporate the user's request into this description to create a new generation prompt. Return ONLY the prompt." 
                 },
                 {
                     role: "user",
@@ -152,7 +169,6 @@ export const generateImage = async (
                     ]
                 }
             ],
-            max_tokens: 500
         });
         finalPrompt = descriptionResponse.choices[0]?.message?.content || prompt;
     }
@@ -160,146 +176,89 @@ export const generateImage = async (
     let size: "1024x1024" | "1024x1792" | "1792x1024" = "1024x1024";
     if (aspectRatio === "16:9") size = "1792x1024";
     if (aspectRatio === "9:16") size = "1024x1792";
-    if (aspectRatio === "3:4") size = "1024x1792";
-    if (aspectRatio === "4:3") size = "1792x1024";
 
     const response = await openai.images.generate({
-        model: "dall-e-3",
+        model: modelId,
         prompt: finalPrompt,
         n: 1,
         size: size,
-        response_format: "b64_json",
-        quality: "standard"
+        response_format: "b64_json"
     });
 
+    // OpenRouter / OpenAI standard response
     const b64 = response.data[0].b64_json;
+    const url = response.data[0].url;
+
     if (b64) {
         return {
             url: `data:image/png;base64,${b64}`,
             mimeType: "image/png"
         };
+    } else if (url) {
+        return {
+            url: url,
+            mimeType: "image/png"
+        };
     }
     
-    throw new Error("No image data returned from OpenAI");
+    throw new Error("No image data returned from API");
 
   } catch (error: any) {
-    console.error("OpenAI Image gen error:", error);
+    console.error("OpenRouter Image Error:", error);
     throw new Error(error.message || "Ошибка генерации изображения");
   }
 };
 
 // Video Generation
+// Note: OpenRouter does not currently have a unified standard for Video generation that matches this interface.
+// We keep the "Mock" logic here for UI demonstration purposes until a standard emerges or we connect a specific provider directly.
 export const generateVideo = async (
   modelId: string,
   prompt: string,
   size: string = "1280x720",
-  seconds: 4 | 8 | 12 = 8, // API only accepts 4, 8, or 12
+  seconds: 4 | 8 | 12 = 8, 
   attachment?: { mimeType: string; data: string } | null
 ) => {
-  if (!process.env.API_KEY) {
-      throw new Error("API Key не найден.");
-  }
+  
+  // Use a mock/demo flow because standard OpenAI API doesn't support videos yet
+  // and OpenRouter is text/image focused currently.
+  console.log("Starting Video Gen (Simulated/Mock via Proxy):", { modelId, prompt, size, seconds });
 
-  try {
-    let body: any;
-    let headers: Record<string, string> = {
-        'Authorization': `Bearer ${process.env.API_KEY}`
-    };
-
-    if (attachment) {
-        const formData = new FormData();
-        formData.append('model', modelId);
-        formData.append('prompt', prompt || "Video based on image");
-        formData.append('size', size);
-        formData.append('seconds', seconds.toString());
-        
-        const blob = base64ToBlob(attachment.data, attachment.mimeType);
-        formData.append('input_reference', blob, 'image.png');
-        
-        body = formData;
-        // Do not set Content-Type header for FormData, browser sets it with boundary
-    } else {
-        headers['Content-Type'] = 'application/json';
-        body = JSON.stringify({
-            model: modelId,
-            prompt: prompt,
-            size: size,
-            seconds: seconds.toString() // Fix: Convert to string for API
-        });
-    }
-
-    // Using our proxy path
-    const response = await fetch(`${openai.baseURL}/videos`, {
-      method: 'POST',
-      headers: headers,
-      body: body
-    });
-
-    if (!response.ok) {
-       const err = await response.json();
-       throw new Error(err.error?.message || "Ошибка запуска генерации видео");
-    }
-
-    const task = await response.json();
-    return task; // Returns object with 'id' and 'status'
-
-  } catch (error: any) {
-    console.error("Video Generation Error:", error);
-    if (error.message.includes("404") || error.message.includes("not found")) {
-        console.warn("Sora API not found, returning mock task for demo UI");
-        return {
-           id: "mock_video_" + Date.now(),
-           status: "queued",
-           mock: true
-        };
-    }
-    throw error;
-  }
+  // Simulate API delay and return a task ID
+  await new Promise(r => setTimeout(r, 1500));
+  
+  return {
+      id: "mock_video_" + Date.now(),
+      status: "queued",
+      mock: true
+  };
 };
 
 export const pollVideoStatus = async (videoId: string): Promise<any> => {
-   // Check for mock
+   // Mock polling
    if (videoId.startsWith('mock_')) {
-      await new Promise(r => setTimeout(r, 2000));
+      // Randomly finish after a few polls
+      const isComplete = Math.random() > 0.7; 
+      
+      if (isComplete) {
+          return {
+              id: videoId,
+              status: 'completed',
+              progress: 100,
+              mock: true
+          };
+      }
       return {
           id: videoId,
-          status: 'completed',
-          progress: 100,
+          status: 'in_progress',
+          progress: Math.floor(Math.random() * 80) + 10,
           mock: true
       };
    }
-
-   const response = await fetch(`${openai.baseURL}/videos/${videoId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${process.env.API_KEY}`
-      }
-   });
-
-   if (!response.ok) {
-       throw new Error("Ошибка проверки статуса видео");
-   }
-
-   return await response.json();
+   throw new Error("Video API not connected");
 };
 
 export const getVideoContent = async (videoId: string): Promise<string> => {
-   // Mock return
-   if (videoId.startsWith('mock_')) {
-      return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4"; // Demo video
-   }
-
-   const response = await fetch(`${openai.baseURL}/videos/${videoId}/content`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${process.env.API_KEY}`
-      }
-   });
-
-   if (!response.ok) {
-      throw new Error("Ошибка загрузки видео");
-   }
-
-   const blob = await response.blob();
-   return URL.createObjectURL(blob);
+   // Mock return demo video
+   return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4"; 
 };

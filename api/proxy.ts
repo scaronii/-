@@ -1,41 +1,51 @@
-// api/proxy.ts
+
 export const config = {
-  runtime: 'edge', // Используем Edge для скорости
+  runtime: 'edge',
 };
 
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || process.env.API_KEY;
+const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://uniai.app';
+const SITE_NAME = 'UniAI Platform';
+
 export default async function handler(request: Request) {
-  // 1. Разбираем URL
   const url = new URL(request.url);
   
-  // Получаем путь после /openai-api/
-  // Например, если запрос на /openai-api/v1/chat/completions
+  // Remove the local proxy prefix to get the target path
+  // e.g., /openai-api/v1/chat/completions -> v1/chat/completions
   const targetPath = url.pathname.replace(/^\/openai-api\//, '');
-  const targetUrl = `https://api.openai.com/${targetPath}${url.search}`;
+  
+  // Route everything to OpenRouter
+  const targetUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
 
-  // 2. Копируем заголовки, но ИСКЛЮЧАЕМ те, что выдают локацию
   const headers = new Headers(request.headers);
   headers.delete('host');
-  headers.delete('x-forwarded-for'); // Самое важное: удаляем ваш IP
+  headers.delete('x-forwarded-for');
   headers.delete('x-real-ip');
-  headers.delete('cf-connecting-ip'); // Если используется Cloudflare
   
-  // Ensure content-type is passed correctly
+  // OpenRouter Authentication & Identification
+  headers.set('Authorization', `Bearer ${OPENROUTER_KEY}`);
+  headers.set('HTTP-Referer', SITE_URL);
+  headers.set('X-Title', SITE_NAME);
+  
   if (!headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
 
-  // 3. Формируем новый запрос к OpenAI
-  const openaiResponse = await fetch(targetUrl, {
-    method: request.method,
-    headers: headers,
-    body: request.body,
-    // @ts-ignore
-    duplex: 'half', // Нужно для streaming body в Edge runtime
-  });
+  try {
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers: headers,
+      body: request.body,
+      // @ts-ignore
+      duplex: 'half', 
+    });
 
-  // 4. Отдаем ответ обратно фронтенду как есть (стриминг)
-  return new Response(openaiResponse.body, {
-    status: openaiResponse.status,
-    headers: openaiResponse.headers,
-  });
+    return new Response(response.body, {
+      status: response.status,
+      headers: response.headers,
+    });
+  } catch (e) {
+    console.error("Proxy Error:", e);
+    return new Response(JSON.stringify({ error: 'Connection to OpenRouter Failed' }), { status: 502 });
+  }
 }
