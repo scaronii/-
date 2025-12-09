@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { TEXT_MODELS, VIDEO_MODELS } from '../constants';
 
@@ -258,10 +259,11 @@ export const getVideoContent = async (fileId: string) => {
 
 // --- MUSIC GENERATION (Music 2.0) ---
 
+// Хелпер для конвертации HEX (очищенный от мусора) в Blob
 const hexToBlob = (hex: string, mimeType: string) => {
-  const cleanHex = hex.replace(/\s+/g, '');
+  const cleanHex = hex.replace(/[\s\n\r"']+/g, ''); // Удаляем пробелы, кавычки и переносы
   if (cleanHex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(cleanHex)) {
-     throw new Error("Invalid hex string");
+     throw new Error("Invalid hex string received from stream");
   }
   const bytes = new Uint8Array(cleanHex.length / 2);
   for (let i = 0; i < cleanHex.length; i += 2) {
@@ -270,15 +272,16 @@ const hexToBlob = (hex: string, mimeType: string) => {
   return new Blob([bytes], { type: mimeType });
 };
 
-// 2. Вставляем обновленную функцию генерации музыки
 export const generateMusic = async (prompt: string, lyrics: string) => {
     try {
+        console.log("Starting Streaming Music Gen (v5.0)");
+
         const payload = {
             model: "music-2.0",
             prompt: prompt,
             lyrics: lyrics,
-            output_format: "url", 
-            stream: false,
+            output_format: "hex", // При стриминге MiniMax отдает hex
+            stream: true,         // ВКЛЮЧАЕМ СТРИМИНГ, чтобы избежать 504 ошибки
             audio_setting: {
                 sample_rate: 44100,
                 bitrate: 128000,
@@ -292,38 +295,65 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
             body: JSON.stringify(payload)
         });
 
-        const data = await response.json();
-        console.log("MiniMax Music Response:", data);
-
-        if (data.base_resp && data.base_resp.status_code !== 0) {
-            throw new Error(`MiniMax Error (${data.base_resp.status_code}): ${data.base_resp.status_msg}`);
+        if (!response.ok) {
+             // Пытаемся прочитать текст ошибки
+             const errText = await response.text();
+             throw new Error(`API Error ${response.status}: ${errText.slice(0, 100)}`);
         }
 
-        const audioData = data.data?.audio || data.data?.url;
+        if (!response.body) throw new Error("No response body");
 
-        if (!audioData) {
-            throw new Error("API не вернуло аудио данные");
+        // Читаем поток данных (Stream Reader)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        let fullHexData = "";
+
+        while (!done) {
+            const { value, done: doneReading } = await reader.read();
+            done = doneReading;
+            const chunkValue = decoder.decode(value, { stream: true });
+            
+            // MiniMax стримит данные в формате SSE (data: {...})
+            // Нам нужно распарсить эти кусочки и достать из них "audio" или "data" (hex)
+            const lines = chunkValue.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonStr = line.slice(6).trim();
+                    if (jsonStr === '[DONE]') continue;
+                    
+                    try {
+                        const json = JSON.parse(jsonStr);
+                        // Собираем кусочки hex-кода
+                        if (json.data && json.data.audio) {
+                            fullHexData += json.data.audio;
+                        } else if (json.audio) {
+                            fullHexData += json.audio; // Иногда структура отличается
+                        }
+                    } catch (e) {
+                        // Игнорируем битые json чанки
+                    }
+                }
+            }
         }
 
-        // СЦЕНАРИЙ 1: Это ссылка (обычный режим)
-        if (audioData.startsWith('http')) {
-            return { url: audioData };
+        if (!fullHexData) {
+            throw new Error("Не удалось получить аудио данные из потока");
         }
 
-        // СЦЕНАРИЙ 2: Это HEX код (исправление вашей ошибки)
-        const isHex = /^[0-9a-fA-F]+$/.test(audioData) && audioData.length > 100;
-        if (isHex) {
-            console.log("Converting HEX to Audio Blob...");
-            const blob = hexToBlob(audioData, 'audio/mpeg');
-            const blobUrl = URL.createObjectURL(blob);
-            return { url: blobUrl };
-        }
-
-        // СЦЕНАРИЙ 3: Base64 (резервный)
-        return { url: `data:audio/mpeg;base64,${audioData}` };
+        console.log("Stream finished. Converting Hex to Blob...");
+        const blob = hexToBlob(fullHexData, 'audio/mpeg');
+        const blobUrl = URL.createObjectURL(blob);
+        
+        return { url: blobUrl };
 
     } catch (e: any) {
         console.error("Music Generation Error:", e);
+        // Если ошибка парсинга JSON (часто бывает при 504, когда приходит HTML), даем понятный ответ
+        if (e.message.includes("Unexpected token")) {
+            throw new Error("Сервер перегружен (Timeout). Попробуйте позже или выберите более короткий текст.");
+        }
         throw new Error(e.message || "Не удалось создать музыку");
     }
 };

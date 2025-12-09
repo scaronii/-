@@ -1,6 +1,6 @@
 
 export const config = {
-  runtime: 'edge',
+  runtime: 'edge', // Edge функции лучше подходят для стриминга
 };
 
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY;
@@ -25,7 +25,6 @@ export default async function handler(request: Request) {
 
   const url = new URL(request.url);
   // Extract the target path from the query parameter 'path'
-  // Example: /minimax-api?path=/v1/video_generation
   const targetPath = url.searchParams.get('path');
   
   if (!targetPath) {
@@ -35,7 +34,7 @@ export default async function handler(request: Request) {
   // Construct the final URL
   const finalUrl = new URL(API_HOST + targetPath);
   
-  // Append all other query parameters to the final URL (e.g., task_id, file_id)
+  // Append all other query parameters to the final URL
   url.searchParams.forEach((value, key) => {
       if (key !== 'path') finalUrl.searchParams.append(key, value);
   });
@@ -53,13 +52,21 @@ export default async function handler(request: Request) {
       body: request.method === 'POST' ? request.body : undefined,
     });
 
-    const data = await response.text();
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Upstream Error (${response.status}):`, errorText);
+        return new Response(errorText, { status: response.status });
+    }
 
-    return new Response(data, {
+    // ИСПРАВЛЕНИЕ: Передаем response.body напрямую, не дожидаясь загрузки (Stream)
+    return new Response(response.body, {
       status: response.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
+        // Важно для стриминга SSE
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
       },
     });
   } catch (error: any) {
