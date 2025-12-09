@@ -10,14 +10,12 @@ const openai = new OpenAI({
 });
 
 // Debug utility to fetch all available OpenRouter models
-// Call `await window.logAvailableModels()` in console to see the list
 if (typeof window !== 'undefined') {
   (window as any).logAvailableModels = async () => {
     try {
       const response = await fetch(`${window.location.origin}/openai-api/v1/models`);
       const data = await response.json();
       console.log("=== Available OpenRouter Models ===");
-      console.log(data);
       console.table(data.data.map((m: any) => ({ id: m.id, name: m.name, pricing: m.pricing })));
       return data;
     } catch (e) {
@@ -36,17 +34,6 @@ interface StreamChatOptions {
   onChunk: (text: string) => void;
 }
 
-// Helper to convert base64 to Blob
-const base64ToBlob = (base64: string, mimeType: string) => {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  return new Blob([byteArray], { type: mimeType });
-};
-
 export const streamChatResponse = async ({
   modelId,
   history,
@@ -57,31 +44,23 @@ export const streamChatResponse = async ({
   onChunk
 }: StreamChatOptions) => {
   
-  // 1. Determine Model ID
-  // Note: We use the exact ID from constants. If it doesn't exist on OpenRouter yet (e.g. GPT-5), 
-  // OpenRouter might return a 404 or fallback depending on their config.
   const selectedModelDef = TEXT_MODELS.find(m => m.id === modelId);
   const targetModel = selectedModelDef ? selectedModelDef.id : 'google/gemini-2.0-flash-001';
 
-  // 2. Build Messages Array
   const messages: any[] = [];
 
-  // System Prompt
   if (systemInstruction) {
     messages.push({ role: 'system', content: systemInstruction });
   }
 
-  // Convert History
   for (const turn of history) {
     const role = turn.role === 'model' ? 'assistant' : 'user';
     let content: any = null;
     
-    // Check for images in history
     const imagePart = turn.parts.find(p => 'inlineData' in p);
     const textPart = turn.parts.find(p => 'text' in p);
 
     if (imagePart && 'inlineData' in imagePart) {
-        // Multimodal message
         content = [
             { type: "text", text: ('text' in textPart! ? textPart.text : "") },
             { 
@@ -92,7 +71,6 @@ export const streamChatResponse = async ({
             }
         ];
     } else if (textPart && 'text' in textPart) {
-        // Text only
         content = textPart.text;
     }
     
@@ -101,7 +79,6 @@ export const streamChatResponse = async ({
     }
   }
 
-  // Current Message
   const currentContent: any[] = [];
   if (message) {
       currentContent.push({ type: "text", text: message });
@@ -123,10 +100,7 @@ export const streamChatResponse = async ({
         model: targetModel,
         messages: messages,
         stream: true,
-        // OpenRouter handles limits, but we set a safe default
         max_tokens: 4096,
-        // search is handled by OpenRouter plugins if model supports it (e.g. perplexity)
-        // or we rely on the model's knowledge
     });
 
     for await (const chunk of stream) {
@@ -153,7 +127,6 @@ export const generateImage = async (
     let finalPrompt = prompt;
 
     // Vision Remix: Use GPT-4o to describe attachment if present
-    // OpenRouter supports this seamlessly via the chat endpoint
     if (attachment) {
         const descriptionResponse = await openai.chat.completions.create({
             model: "openai/gpt-4o",
@@ -178,15 +151,39 @@ export const generateImage = async (
     if (aspectRatio === "16:9") size = "1792x1024";
     if (aspectRatio === "9:16") size = "1024x1792";
 
-    const response = await openai.images.generate({
-        model: modelId,
-        prompt: finalPrompt,
-        n: 1,
-        size: size,
-        // We do NOT use b64_json because many OpenRouter models (Flux, etc) only return URLs
+    const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}/openai-api/v1` : 'https://openrouter.ai/api/v1';
+
+    // Use native fetch to avoid SDK issues with 405 or malformed requests
+    const response = await fetch(`${baseUrl}/images/generations`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer dummy' // Proxy replaces this, but needed for local shim
+        },
+        body: JSON.stringify({
+            model: modelId,
+            prompt: finalPrompt,
+            n: 1,
+            size: size
+        })
     });
 
-    const url = response.data[0].url;
+    if (!response.ok) {
+        let errorMessage = `Ошибка ${response.status}`;
+        try {
+            const errData = await response.json();
+            if (errData.error?.message) {
+                errorMessage = errData.error.message;
+            }
+        } catch {
+            const text = await response.text();
+            if (text) errorMessage = text.substring(0, 200); // Limit length
+        }
+        throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const url = data.data?.[0]?.url;
 
     if (url) {
         return {
@@ -195,18 +192,14 @@ export const generateImage = async (
         };
     }
     
-    throw new Error("No image data returned from API");
+    throw new Error("API вернул пустой результат");
 
   } catch (error: any) {
     console.error("OpenRouter Image Error:", error);
-    // Propagate the actual API error message to the UI
     throw new Error(error.message || "Ошибка генерации изображения");
   }
 };
 
-// Video Generation
-// Note: OpenRouter does not currently have a unified standard for Video generation that matches this interface.
-// We keep the "Mock" logic here for UI demonstration purposes until a standard emerges or we connect a specific provider directly.
 export const generateVideo = async (
   modelId: string,
   prompt: string,
@@ -214,12 +207,7 @@ export const generateVideo = async (
   seconds: 4 | 8 | 12 = 8, 
   attachment?: { mimeType: string; data: string } | null
 ) => {
-  
-  // Use a mock/demo flow because standard OpenAI API doesn't support videos yet
-  // and OpenRouter is text/image focused currently.
   console.log("Starting Video Gen (Simulated/Mock via Proxy):", { modelId, prompt, size, seconds });
-
-  // Simulate API delay and return a task ID
   await new Promise(r => setTimeout(r, 1500));
   
   return {
@@ -230,9 +218,7 @@ export const generateVideo = async (
 };
 
 export const pollVideoStatus = async (videoId: string): Promise<any> => {
-   // Mock polling
    if (videoId.startsWith('mock_')) {
-      // Randomly finish after a few polls
       const isComplete = Math.random() > 0.7; 
       
       if (isComplete) {
@@ -254,6 +240,5 @@ export const pollVideoStatus = async (videoId: string): Promise<any> => {
 };
 
 export const getVideoContent = async (videoId: string): Promise<string> => {
-   // Mock return demo video
    return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4"; 
 };

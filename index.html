@@ -51,22 +51,37 @@
         font-family: 'DM Sans', sans-serif;
         background-color: #f8f8f8;
         color: #292928;
+        -webkit-tap-highlight-color: transparent; /* Remove gray tap highlight on iOS */
       }
       
       /* Custom scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
         background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #e2e8f0; 
-        border-radius: 4px;
+        background: #cbd5e1; /* Darker gray for better visibility */
+        border-radius: 3px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #cbd5e1; 
+        background: #94a3b8; 
+      }
+
+      /* Text Selection */
+      ::selection {
+        background-color: #c3f832; /* Lime */
+        color: #292928;
+      }
+      ::-moz-selection {
+        background-color: #c3f832;
+        color: #292928;
+      }
+      ::-webkit-selection {
+        background-color: #c3f832;
+        color: #292928;
       }
 
       /* Markdown Styles - Light Theme Adaptation */
@@ -103,7 +118,7 @@
 }
 </script>
 </head>
-  <body class="bg-offwhite text-charcoal overflow-hidden selection:bg-lime selection:text-charcoal">
+  <body class="bg-offwhite text-charcoal overflow-hidden">
     <div id="root">
        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 500; color: #9ca3af;">
          Загрузка UniAI...

@@ -8,6 +8,18 @@ const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
 const SITE_NAME = 'UniAI Platform';
 
 export default async function handler(request: Request) {
+  // Handle CORS Preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Title, HTTP-Referer',
+      },
+    });
+  }
+
   const url = new URL(request.url);
   
   // Remove the local proxy prefix to get the target path
@@ -40,12 +52,19 @@ export default async function handler(request: Request) {
       duplex: 'half', 
     });
 
+    // Create a new response to allow adding CORS headers
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+
     return new Response(response.body, {
       status: response.status,
-      headers: response.headers,
+      headers: newHeaders,
     });
   } catch (e) {
     console.error("Proxy Error:", e);
-    return new Response(JSON.stringify({ error: 'Connection to OpenRouter Failed' }), { status: 502 });
+    return new Response(JSON.stringify({ error: 'Connection to OpenRouter Failed' }), { 
+      status: 502,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
   }
 }
