@@ -117,33 +117,52 @@ export const streamChatResponse = async ({
 };
 
 export const generateImage = async (model: string, prompt: string, aspectRatio: string, attachment?: { mimeType: string; data: string }) => {
-    // Map aspectRatio to OpenAI size format (approximate)
-    let size = "1024x1024";
-    if (aspectRatio === '16:9') size = "1792x1024";
-    else if (aspectRatio === '9:16') size = "1024x1792";
-    
     try {
-        const response = await openai.images.generate({
-            model: model,
-            prompt: prompt,
-            size: size as any,
-            n: 1,
-            response_format: "b64_json"
-        });
-        
-        const b64 = response.data[0].b64_json;
-        if (b64) {
-            return { url: `data:image/png;base64,${b64}` };
-        } else if (response.data[0].url) {
-            return { url: response.data[0].url };
+        // Формируем сообщение
+        const messages: any[] = [
+            { role: 'user', content: prompt }
+        ];
+
+        // Добавляем референс (attachment), если есть
+        if (attachment) {
+             messages[0].content = [
+                { type: "text", text: prompt },
+                {
+                    type: "image_url",
+                    image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` }
+                }
+             ];
         }
-        throw new Error("No image data returned from API");
+
+        // Вызов Chat API с параметром modalities (специфика OpenRouter)
+        // Мы используем 'as any', чтобы обойти типизацию OpenAI SDK, которая не знает про 'modalities'
+        const response = await openai.chat.completions.create({
+            model: model,
+            messages: messages,
+            // @ts-ignore - игнорируем ошибку типов для нестандартного параметра
+            modalities: ["image", "text"], 
+            image_config: {
+                aspect_ratio: aspectRatio // Например '1:1', '16:9' (работает для Gemini моделей)
+            }
+        } as any);
+        
+        // Получаем ответ. В OpenRouter картинка приходит внутри message.images (расширение протокола)
+        const choice = response.choices[0] as any;
+        
+        if (choice.message?.images && choice.message.images.length > 0) {
+             return { url: choice.message.images[0].image_url.url }; // Base64 url
+        } 
+        
+        // Фоллбэк: иногда модель может вернуть ссылку текстом
+        if (choice.message?.content && choice.message.content.startsWith('http')) {
+            return { url: choice.message.content };
+        }
+
+        console.error("No image in response:", response);
+        throw new Error("API не вернуло изображение");
+
     } catch (e: any) {
         console.error("Generate image error:", e);
-        // Fallback for demo purposes if API is unavailable
-        if (process.env.NODE_ENV === 'development') {
-             return { url: "https://placehold.co/1024x1024/png?text=Preview+Image" };
-        }
         throw new Error(e.message || "Failed to generate image");
     }
 };
