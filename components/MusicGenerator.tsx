@@ -34,7 +34,7 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
   const [error, setError] = useState<string | null>(null);
 
   const modelInfo = MUSIC_MODELS.find(m => m.id === 'music-2.0');
-  const COST = modelInfo?.cost || 50;
+  const COST = modelInfo?.cost || 0;
 
   const handleGenerateLyrics = async () => {
     if (!prompt) {
@@ -68,7 +68,9 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
 
   const handleGenerate = async () => {
     if (!prompt || !lyrics) return;
-    if (balance < COST) {
+    
+    // Only check balance if cost > 0
+    if (COST > 0 && balance < COST) {
        alert(`Недостаточно средств. Стоимость: ${COST} ★`);
        return;
     }
@@ -79,10 +81,15 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
 
     try {
       if (tgUser) {
-         const newBal = await userService.deductTokens(tgUser.id, COST);
-         if (newBal !== undefined) onUpdateBalance(newBal);
+         // Only deduct if cost > 0
+         if (COST > 0) {
+             const newBal = await userService.deductTokens(tgUser.id, COST);
+             if (newBal !== undefined) onUpdateBalance(newBal);
+         }
       } else {
-         onUpdateBalance(balance - COST);
+         if (COST > 0) {
+            onUpdateBalance(balance - COST);
+         }
       }
 
       const result = await generateMusic(prompt, lyrics);
@@ -183,7 +190,7 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
                 className="w-full bg-charcoal text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-black transition-all shadow-lg shadow-charcoal/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 {isGenerating ? <RefreshCw className="animate-spin" /> : <Wand2 />}
-                {isGenerating ? 'Пишем музыку...' : `Сгенерировать трек (${COST} ★)`}
+                {isGenerating ? 'Пишем музыку...' : (COST > 0 ? `Сгенерировать трек (${COST} ★)` : 'Сгенерировать трек (Бесплатно)')}
               </button>
             </div>
           </div>
