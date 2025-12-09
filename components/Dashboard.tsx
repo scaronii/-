@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, Video, CreditCard, BookOpen, Settings, Zap, Sparkles } from 'lucide-react';
+import { MessageSquare, ImageIcon, Video, CreditCard, BookOpen, Settings, Zap, Sparkles, Music } from 'lucide-react';
 import { ViewState, TelegramUser } from '../types';
 import { clsx } from 'clsx';
 
@@ -35,6 +35,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, balance 
       icon: Video,
       color: 'bg-red-100 text-red-600',
       hover: 'group-hover:bg-red-200'
+    },
+    {
+      id: 'music',
+      title: 'Музыкальная студия',
+      description: 'MiniMax Music 2.0',
+      icon: Music,
+      color: 'bg-pink-100 text-pink-600',
+      hover: 'group-hover:bg-pink-200'
     },
     {
       id: 'pricing',

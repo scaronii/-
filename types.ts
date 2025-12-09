@@ -22,8 +22,8 @@ export interface ChatSession {
 export interface AIModel {
   id: string;
   name: string;
-  provider: 'OpenAI' | 'Google' | 'Anthropic' | 'DeepSeek' | 'xAI' | 'Moonshot' | 'Recraft' | 'Flux' | 'ByteDance' | 'Qwen' | 'Ideogram' | 'Sourceful';
-  type: 'text' | 'image' | 'video';
+  provider: 'OpenAI' | 'Google' | 'Anthropic' | 'DeepSeek' | 'xAI' | 'Moonshot' | 'Recraft' | 'Flux' | 'ByteDance' | 'Qwen' | 'Ideogram' | 'Sourceful' | 'MiniMax';
+  type: 'text' | 'image' | 'video' | 'audio';
   isNew?: boolean;
   description?: string;
   maxTokens?: number;
@@ -40,7 +40,7 @@ export interface CreditPack {
   isPopular?: boolean;
 }
 
-export type ViewState = 'dashboard' | 'chat' | 'images' | 'video' | 'pricing' | 'docs' | 'profile';
+export type ViewState = 'dashboard' | 'chat' | 'images' | 'video' | 'music' | 'pricing' | 'docs' | 'profile';
 
 export interface TelegramUser {
   id: number;

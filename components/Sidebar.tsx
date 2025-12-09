@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2, LayoutGrid } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2, LayoutGrid, Music } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'chat', label: 'Чат', icon: MessageSquare },
     { id: 'images', label: 'Генерация', icon: ImageIcon },
     { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
+    { id: 'music', label: 'Музыка', icon: Music, badge: 'v2.0' },
     { id: 'pricing', label: 'Магазин', icon: CreditCard },
     { id: 'docs', label: 'Инструкции', icon: BookOpen },
   ];

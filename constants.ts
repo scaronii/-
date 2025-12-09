@@ -1,4 +1,5 @@
 
+
 import { AIModel, CreditPack } from './types';
 
 export const TEXT_MODELS: AIModel[] = [
@@ -196,6 +197,18 @@ export const VIDEO_MODELS: AIModel[] = [
     cost: 30,
     geminiMap: 'video-01' 
   },
+];
+
+export const MUSIC_MODELS: AIModel[] = [
+  { 
+    id: 'music-2.0', 
+    name: 'MiniMax Music 2.0', 
+    provider: 'MiniMax', 
+    type: 'audio', 
+    description: 'Генерация песен с вокалом (High Fidelity)', 
+    cost: 50,
+    geminiMap: 'music-2.0' // Маппинг на реальный ID модели
+  }
 ];
 
 export const CREDIT_PACKS: CreditPack[] = [

@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { ImageGenerator } from './components/ImageGenerator';
 import { VideoGenerator } from './components/VideoGenerator';
+import { MusicGenerator } from './components/MusicGenerator';
 import { Pricing } from './components/Pricing';
 import { SettingsModal } from './components/SettingsModal';
 import { Profile } from './components/Profile';
@@ -280,6 +281,14 @@ const App: React.FC = () => {
              onUpdateBalance={setBalance}
              tgUser={tgUser}
              onVideoGenerated={() => setVideoCount(prev => prev + 1)}
+          />
+        );
+      case 'music':
+        return (
+          <MusicGenerator 
+             balance={balance} 
+             onUpdateBalance={setBalance} 
+             tgUser={tgUser} 
           />
         );
       case 'pricing':

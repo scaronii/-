@@ -1,4 +1,5 @@
 
+
 import OpenAI from "openai";
 import { TEXT_MODELS, VIDEO_MODELS } from '../constants';
 
@@ -254,5 +255,52 @@ export const getVideoContent = async (fileId: string) => {
     } catch (e: any) {
         console.error("Retrieve Error:", e);
         throw new Error("Не удалось получить ссылку на видео");
+    }
+};
+
+// --- MUSIC GENERATION (Music 2.0) ---
+
+export const generateMusic = async (prompt: string, lyrics: string) => {
+    try {
+        const payload = {
+            model: "music-2.0", // Используем новую модель
+            prompt: prompt,     // Описание стиля (10-2000 символов)
+            lyrics: lyrics,     // Текст песни с тегами [Verse], [Chorus] и т.д.
+            output_format: "url", // Просим ссылку (удобнее для фронтенда)
+            stream: false,
+            audio_setting: {
+                sample_rate: 44100,
+                bitrate: 128000,
+                format: "mp3"
+            }
+        };
+
+        // Отправляем запрос через наш прокси
+        const response = await fetch('/minimax-api?path=/v1/music_generation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        // Проверка ошибок по документации (base_resp)
+        if (data.base_resp && data.base_resp.status_code !== 0) {
+            throw new Error(`MiniMax Error (${data.base_resp.status_code}): ${data.base_resp.status_msg}`);
+        }
+
+        // В Music 2.0, если output_format="url", ссылка может быть в data.audio или data.url (зависит от версии API)
+        const audioUrl = data.data?.audio || data.data?.url;
+        
+        if (!audioUrl) {
+            console.error("API Response:", data);
+            throw new Error("API не вернуло ссылку на аудио");
+        }
+
+        return { url: audioUrl };
+
+    } catch (e: any) {
+        console.error("Music Generation Error:", e);
+        throw new Error(e.message || "Не удалось создать музыку");
     }
 };
