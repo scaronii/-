@@ -1,5 +1,4 @@
 
-
 import OpenAI from "openai";
 import { TEXT_MODELS, VIDEO_MODELS } from '../constants';
 
@@ -263,9 +262,9 @@ export const getVideoContent = async (fileId: string) => {
 export const generateMusic = async (prompt: string, lyrics: string) => {
     try {
         const payload = {
-            model: "music-2.0", // Используем новую модель
-            prompt: prompt,     // Описание стиля (10-2000 символов)
-            lyrics: lyrics,     // Текст песни с тегами [Verse], [Chorus] и т.д.
+            model: "music-2.0",
+            prompt: prompt,
+            lyrics: lyrics,
             output_format: "url", // Просим ссылку (удобнее для фронтенда)
             stream: false,
             audio_setting: {
@@ -283,13 +282,14 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
         });
 
         const data = await response.json();
+        console.log("MiniMax Music Response:", data);
 
         // Проверка ошибок по документации (base_resp)
         if (data.base_resp && data.base_resp.status_code !== 0) {
             throw new Error(`MiniMax Error (${data.base_resp.status_code}): ${data.base_resp.status_msg}`);
         }
 
-        // В Music 2.0, если output_format="url", ссылка может быть в data.audio или data.url (зависит от версии API)
+        // В Music 2.0, если output_format="url", ссылка может быть в data.audio или data.url
         const audioUrl = data.data?.audio || data.data?.url;
         
         if (!audioUrl) {
@@ -297,6 +297,7 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
             throw new Error("API не вернуло ссылку на аудио");
         }
 
+        // Возвращаем URL как есть, браузер сам разберется с воспроизведением
         return { url: audioUrl };
 
     } catch (e: any) {
