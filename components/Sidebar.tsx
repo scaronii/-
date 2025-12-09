@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2 } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2, LayoutGrid } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -30,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteChat
 }) => {
   const navItems = [
+    { id: 'dashboard', label: 'Главная', icon: LayoutGrid },
     { id: 'chat', label: 'Чат', icon: MessageSquare },
     { id: 'images', label: 'Генерация', icon: ImageIcon },
     { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
@@ -54,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}>
         {/* Header */}
         <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3 font-bold text-xl text-charcoal">
+          <div className="flex items-center gap-3 font-bold text-xl text-charcoal cursor-pointer" onClick={() => onNavigate('dashboard')}>
             <div className="w-10 h-10 bg-charcoal text-lime rounded-xl flex items-center justify-center shadow-lg shadow-charcoal/10">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -137,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }}
                     className={clsx(
                       "w-full text-left px-4 py-2.5 rounded-xl text-sm truncate transition-colors pr-9",
-                      currentSessionId === session.id
+                      currentSessionId === session.id && currentView === 'chat'
                         ? "bg-gray-100 text-charcoal font-medium"
                         : "text-gray-500 hover:bg-gray-50 hover:text-charcoal"
                     )}
@@ -151,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }}
                     className={clsx(
                       "absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all",
-                      currentSessionId === session.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      currentSessionId === session.id && currentView === 'chat' ? "opacity-100" : "opacity-0 group-hover:opacity-100 md:opacity-0"
                     )}
                     title="Удалить чат"
                   >

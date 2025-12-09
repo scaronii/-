@@ -4,7 +4,7 @@ export const config = {
 };
 
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY;
-const API_HOST = "https://api.minimax.chat"; 
+const API_HOST = "https://api.minimax.io"; 
 
 export default async function handler(request: Request) {
   // CORS Preflight

@@ -1,4 +1,5 @@
 
+
 export type Role = 'user' | 'model';
 
 export interface Message {
@@ -39,7 +40,7 @@ export interface CreditPack {
   isPopular?: boolean;
 }
 
-export type ViewState = 'chat' | 'images' | 'video' | 'pricing' | 'docs' | 'profile';
+export type ViewState = 'dashboard' | 'chat' | 'images' | 'video' | 'pricing' | 'docs' | 'profile';
 
 export interface TelegramUser {
   id: number;

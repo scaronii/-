@@ -7,6 +7,7 @@ import { VideoGenerator } from './components/VideoGenerator';
 import { Pricing } from './components/Pricing';
 import { SettingsModal } from './components/SettingsModal';
 import { Profile } from './components/Profile';
+import { Dashboard } from './components/Dashboard';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
@@ -14,7 +15,7 @@ import { Menu } from 'lucide-react';
 import { TEXT_MODELS } from './constants';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewState>('chat');
+  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>('gpt-5-nano'); 
@@ -61,18 +62,23 @@ const App: React.FC = () => {
         if (history.length > 0) {
           setSessions(history);
           setCurrentSessionId(history[0].id);
+          // Do NOT automatically switch to chat view, keep 'dashboard'
         } else {
-          await createNewChatSession(user.id);
+          // Setup new chat but don't switch view
+          const newId = await createNewChatSession(user.id, false);
+          setCurrentSessionId(newId);
         }
       } else {
-        handleNewChat();
+         // Local mode
+         const newId = await createNewChatSession(undefined, false);
+         setCurrentSessionId(newId);
       }
     };
 
     initApp();
   }, []);
 
-  const createNewChatSession = async (userId?: number) => {
+  const createNewChatSession = async (userId?: number, switchToChat: boolean = true) => {
     let newId = Date.now().toString();
     if (userId) {
        const dbId = await userService.createChat(userId, 'Новый чат', selectedModelId);
@@ -87,17 +93,19 @@ const App: React.FC = () => {
       systemInstruction: systemInstruction
     };
     setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newId);
+    if (switchToChat) {
+      setCurrentSessionId(newId);
+      setCurrentView('chat');
+    }
     return newId;
   };
 
   const handleNewChat = () => {
     if (tgUser) {
-      createNewChatSession(tgUser.id);
+      createNewChatSession(tgUser.id, true);
     } else {
-      createNewChatSession();
+      createNewChatSession(undefined, true);
     }
-    setCurrentView('chat');
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
@@ -119,7 +127,6 @@ const App: React.FC = () => {
     if (tgUser) {
         const success = await userService.deleteChat(sessionId);
         if (!success) {
-            // Optional: revert logic could go here, but simple alert is often enough
             console.error("Failed to delete chat from DB");
         }
     }
@@ -239,6 +246,14 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (currentView) {
+      case 'dashboard':
+        return (
+          <Dashboard
+             user={tgUser}
+             onNavigate={setCurrentView}
+             balance={balance}
+          />
+        );
       case 'chat':
         return (
           <ChatInterface 
@@ -325,7 +340,7 @@ const App: React.FC = () => {
           <button onClick={() => setSidebarOpen(true)} className="p-2.5 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100 active:scale-95 transition-transform">
             <Menu size={22} />
           </button>
-          {tgUser && (
+          {tgUser && currentView !== 'dashboard' && (
              <div 
                className="bg-surface px-3 py-2.5 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1.5 active:scale-95 transition-transform"
                onClick={() => setCurrentView('profile')}
@@ -336,6 +351,7 @@ const App: React.FC = () => {
           )}
         </div>
         <div className="hidden md:block absolute top-6 right-8 z-20">
+            {/* Show balance here only if not on dashboard to avoid duplication, or keep for consistency */}
              <div 
                className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" 
                onClick={() => setCurrentView('profile')}
