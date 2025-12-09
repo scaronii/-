@@ -57,20 +57,20 @@ export const streamChatResponse = async ({
     const role = turn.role === 'model' ? 'assistant' : 'user';
     let content: any = null;
     
-    const imagePart = turn.parts.find(p => 'inlineData' in p);
-    const textPart = turn.parts.find(p => 'text' in p);
+    const imagePart = turn.parts.find(p => 'inlineData' in p) as { inlineData: { mimeType: string; data: string } } | undefined;
+    const textPart = turn.parts.find(p => 'text' in p) as { text: string } | undefined;
 
-    if (imagePart && 'inlineData' in imagePart) {
+    if (imagePart) {
         content = [
-            { type: "text", text: ('text' in textPart! ? textPart.text : "") },
+            { type: "text", text: (textPart ? textPart.text : "") },
             { 
               type: "image_url", 
-              image_url: { 
-                  url: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` 
-              } 
+              image_url: {
+                  url: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`
+              }
             }
         ];
-    } else if (textPart && 'text' in textPart) {
+    } else if (textPart) {
         content = textPart.text;
     }
     
@@ -79,189 +79,93 @@ export const streamChatResponse = async ({
     }
   }
 
-  const currentContent: any[] = [];
-  if (message) {
-      currentContent.push({ type: "text", text: message });
-  }
+  let currentContent: any = message;
   if (attachment) {
-      currentContent.push({ 
-          type: "image_url", 
-          image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` 
-      } 
-      });
+      currentContent = [
+          { type: "text", text: message },
+          {
+              type: "image_url",
+              image_url: {
+                  url: `data:${attachment.mimeType};base64,${attachment.data}`
+              }
+          }
+      ];
   }
+  messages.push({ role: 'user', content: currentContent });
 
-  if (currentContent.length > 0) {
-      messages.push({ role: 'user', content: currentContent });
+  if (useSearch) {
+      messages.push({ role: 'system', content: "Use available search tools to provide up-to-date information." });
   }
 
   try {
-    const stream = await openai.chat.completions.create({
+      const stream = await openai.chat.completions.create({
         model: targetModel,
         messages: messages,
         stream: true,
-        max_tokens: 4096,
-    });
+      });
 
-    for await (const chunk of stream) {
+      for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
-            onChunk(content);
+          onChunk(content);
         }
-    }
-
-  } catch (error: any) {
-    console.error("OpenRouter Chat Error:", error);
-    throw new Error(error.message || "Ошибка соединения с OpenRouter");
-  }
-};
-
-export const generateImage = async (
-  modelId: string,
-  prompt: string,
-  aspectRatio: string = "1:1",
-  attachment?: { mimeType: string; data: string } | null
-): Promise<{ url: string | null, mimeType?: string }> => {
-  
-  try {
-    let content: any;
-
-    // СТРАТЕГИЯ 1: Если есть картинка-референс (Vision Remix)
-    if (attachment) {
-      // Для Vision моделей контент должен быть массивом
-      content = [
-        { 
-          type: "text", 
-          text: (prompt || "Generate an image") + ` (Aspect Ratio: ${aspectRatio})` 
-        },
-        {
-          type: "image_url",
-          image_url: {
-            // attachment.data уже должен быть base64 строкой (ASCII), это безопасно
-            url: `data:${attachment.mimeType};base64,${attachment.data}`
-          }
-        }
-      ];
-    } else {
-      // СТРАТЕГИЯ 2: Только текст
-      // OpenRouter рекомендует отправлять просто строку, если нет картинок
-      content = (prompt || "Generate an image") + ` (Aspect Ratio: ${aspectRatio})`;
-    }
-
-    const payload: any = {
-      model: modelId,
-      messages: [
-        {
-          role: 'user',
-          content: content,
-        },
-      ],
-      // ВАЖНО: Согласно документации OpenRouter, этот параметр обязателен для генерации
-      modalities: ['image', 'text'],
-    };
-
-    // Для Gemini добавляем специальный конфиг, но оставляем размер и в промпте для надежности
-    if (modelId.includes('gemini')) {
-        payload.image_config = { aspect_ratio: aspectRatio };
-    }
-
-    console.log("Sending Image Request Payload:", JSON.stringify(payload, null, 2));
-
-    const response = await fetch('/openai-api/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      // JSON.stringify безопасно кодирует Unicode (русский текст)
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Image Gen API Error:", errorText);
-        throw new Error(`Ошибка API (${response.status}): ${errorText.slice(0, 100)}`);
-    }
-
-    const data = await response.json();
-    console.log("OpenRouter Image Response:", data);
-
-    // === ПОИСК КАРТИНКИ В ОТВЕТЕ ===
-
-    const choice = data.choices?.[0];
-    const message = choice?.message;
-    
-    // 1. Стандартный формат (поле images)
-    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
-        const img = message.images[0];
-        const url = img.image_url?.url || img.url;
-        if (url) return { url, mimeType: "image/png" };
-    }
-
-    // 2. Поиск в тексте ответа (Markdown ссылка)
-    const textContent = message?.content || "";
-    const markdownMatch = textContent.match(/\!\[.*?\]\((.*?)\)/);
-    if (markdownMatch && markdownMatch[1]) {
-        return { url: markdownMatch[1], mimeType: "image/png" };
-    }
-    
-    // 3. Поиск прямой ссылки в тексте
-    const urlMatch = textContent.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
-    if (urlMatch && urlMatch[1]) {
-         return { url: urlMatch[1], mimeType: "image/png" };
-    }
-
-    // 4. Старый формат OpenAI
-    if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
-        return { url: data.data[0].url, mimeType: "image/png" };
-    }
-
-    throw new Error("Картинка не найдена в ответе API.");
-
-  } catch (error: any) {
-    console.error("Generate Image Critical Error:", error);
-    throw new Error(error.message || "Не удалось создать изображение");
-  }
-};
-
-export const generateVideo = async (
-  modelId: string,
-  prompt: string,
-  size: string = "1280x720",
-  seconds: 4 | 8 | 12 = 8, 
-  attachment?: { mimeType: string; data: string } | null
-) => {
-  console.log("Starting Video Gen (Simulated/Mock via Proxy):", { modelId, prompt, size, seconds });
-  await new Promise(r => setTimeout(r, 1500));
-  
-  return {
-      id: "mock_video_" + Date.now(),
-      status: "queued",
-      mock: true
-  };
-};
-
-export const pollVideoStatus = async (videoId: string): Promise<any> => {
-   if (videoId.startsWith('mock_')) {
-      const isComplete = Math.random() > 0.7; 
-      
-      if (isComplete) {
-          return {
-              id: videoId,
-              status: 'completed',
-              progress: 100,
-              mock: true
-          };
       }
-      return {
-          id: videoId,
-          status: 'in_progress',
-          progress: Math.floor(Math.random() * 80) + 10,
-          mock: true
-      };
-   }
-   throw new Error("Video API not connected");
+  } catch (error) {
+      console.error("Chat error:", error);
+      throw error;
+  }
 };
 
-export const getVideoContent = async (videoId: string): Promise<string> => {
-   return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4"; 
+export const generateImage = async (model: string, prompt: string, aspectRatio: string, attachment?: { mimeType: string; data: string }) => {
+    // Map aspectRatio to OpenAI size format (approximate)
+    let size = "1024x1024";
+    if (aspectRatio === '16:9') size = "1792x1024";
+    else if (aspectRatio === '9:16') size = "1024x1792";
+    
+    try {
+        const response = await openai.images.generate({
+            model: model,
+            prompt: prompt,
+            size: size as any,
+            n: 1,
+            response_format: "b64_json"
+        });
+        
+        const b64 = response.data[0].b64_json;
+        if (b64) {
+            return { url: `data:image/png;base64,${b64}` };
+        } else if (response.data[0].url) {
+            return { url: response.data[0].url };
+        }
+        throw new Error("No image data returned from API");
+    } catch (e: any) {
+        console.error("Generate image error:", e);
+        // Fallback for demo purposes if API is unavailable
+        if (process.env.NODE_ENV === 'development') {
+             return { url: "https://placehold.co/1024x1024/png?text=Preview+Image" };
+        }
+        throw new Error(e.message || "Failed to generate image");
+    }
+};
+
+export const generateVideo = async (model: string, prompt: string, aspectRatio: string, duration: number, attachment?: { mimeType: string; data: string }) => {
+    console.log("Generating video...", { model, prompt, aspectRatio, duration });
+    // Mock async task
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    return { id: "vid-" + Math.random().toString(36).substring(2, 9) };
+};
+
+export const pollVideoStatus = async (id: string) => {
+    // Mock polling
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const isComplete = Math.random() > 0.4;
+    return {
+        status: isComplete ? 'completed' : 'processing',
+        progress: isComplete ? 100 : Math.floor(Math.random() * 80)
+    };
+};
+
+export const getVideoContent = async (id: string) => {
+    // Mock video URL
+    return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4";
 };

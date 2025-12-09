@@ -21,7 +21,9 @@ export default async function handler(request: Request) {
   }
 
   const url = new URL(request.url);
+  // Strip the /openai-api/ prefix to get the target path
   const targetPath = url.pathname.replace(/^\/openai-api\//, '');
+  // Construct the final URL (OpenRouter)
   const finalUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
 
   const headers = new Headers(request.headers);
@@ -36,34 +38,21 @@ export default async function handler(request: Request) {
   }
 
   try {
+    // 1. Read the request body fully
     const bodyBuffer = await request.arrayBuffer();
 
+    // 2. Forward request to OpenRouter
     const backendResponse = await fetch(finalUrl, {
       method: request.method,
       headers: headers,
       body: bodyBuffer,
     });
 
-    // Fully buffer the response to avoid streaming encoding issues
+    // 3. Read the response body fully (prevents streaming encoding errors in browser)
     const responseData = await backendResponse.arrayBuffer();
 
-    // Construct clean headers to avoid browser decoding conflicts (gzip, etc)
+    // 4. Construct clean headers for the client
     const newHeaders = new Headers();
     newHeaders.set('Access-Control-Allow-Origin', '*');
     newHeaders.set('Content-Type', backendResponse.headers.get('content-type') || 'application/json');
-
-    return new Response(responseData, {
-      status: backendResponse.status,
-      headers: newHeaders,
-    });
-  } catch (e) {
-    console.error("Proxy Error:", e);
-    return new Response(JSON.stringify({ error: 'Connection to OpenRouter Failed' }), { 
-      status: 502,
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Access-Control-Allow-Origin': '*' 
-      }
-    });
-  }
-}
+    

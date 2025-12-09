@@ -37,7 +37,8 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const modelInfo = IMAGE_MODELS.find(m => m.id === selectedModel);
-  const cost = modelInfo?.cost || 50;
+  // Fix: Use nullish coalescing (??) because cost can be 0 (free), and 0 || 50 would result in 50.
+  const cost = modelInfo?.cost ?? 50;
 
   const handleRandomPrompt = () => {
     const random = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
@@ -169,7 +170,9 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                     className="w-full bg-gray-50 text-charcoal font-medium border border-gray-200 rounded-2xl px-5 py-3.5 appearance-none focus:ring-2 focus:ring-lime focus:outline-none transition-all cursor-pointer hover:bg-gray-100 text-sm md:text-base"
                   >
                     {IMAGE_MODELS.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.cost} ★)</option>
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.cost === 0 ? 'Бесплатно' : `${m.cost} ★`})
+                      </option>
                     ))}
                   </select>
                   <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
@@ -209,7 +212,9 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
               <div className="pt-4 border-t border-gray-100">
                  <div className="flex justify-between items-center bg-lime/10 p-4 rounded-2xl">
                     <span className="text-sm font-bold text-lime-800">Стоимость</span>
-                    <span className="text-charcoal font-bold">{cost} ★</span>
+                    <span className="text-charcoal font-bold">
+                      {cost === 0 ? 'Бесплатно' : `${cost} ★`}
+                    </span>
                  </div>
               </div>
             </div>
@@ -294,7 +299,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                   className="w-full sm:w-auto bg-lime hover:bg-[#b0e61a] text-charcoal px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-glow hover:scale-105 active:scale-95 text-base"
                 >
                   {isGenerating ? <RefreshCw className="animate-spin" size={20} /> : <Wand2 size={20} />}
-                  Создать ({cost} ★)
+                  Создать ({cost === 0 ? 'Бесплатно' : `${cost} ★`})
                 </button>
               </div>
             </div>
