@@ -259,13 +259,26 @@ export const getVideoContent = async (fileId: string) => {
 
 // --- MUSIC GENERATION (Music 2.0) ---
 
+const hexToBlob = (hex: string, mimeType: string) => {
+  const cleanHex = hex.replace(/\s+/g, '');
+  if (cleanHex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(cleanHex)) {
+     throw new Error("Invalid hex string");
+  }
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.substring(i, i + 2), 16);
+  }
+  return new Blob([bytes], { type: mimeType });
+};
+
+// 2. Вставляем обновленную функцию генерации музыки
 export const generateMusic = async (prompt: string, lyrics: string) => {
     try {
         const payload = {
             model: "music-2.0",
             prompt: prompt,
             lyrics: lyrics,
-            output_format: "url", // Просим ссылку (удобнее для фронтенда)
+            output_format: "url", 
             stream: false,
             audio_setting: {
                 sample_rate: 44100,
@@ -274,7 +287,6 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
             }
         };
 
-        // Отправляем запрос через наш прокси
         const response = await fetch('/minimax-api?path=/v1/music_generation', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -284,21 +296,55 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
         const data = await response.json();
         console.log("MiniMax Music Response:", data);
 
-        // Проверка ошибок по документации (base_resp)
         if (data.base_resp && data.base_resp.status_code !== 0) {
             throw new Error(`MiniMax Error (${data.base_resp.status_code}): ${data.base_resp.status_msg}`);
         }
 
-        // В Music 2.0, если output_format="url", ссылка может быть в data.audio или data.url
-        const audioUrl = data.data?.audio || data.data?.url;
-        
-        if (!audioUrl) {
-            console.error("API Response:", data);
-            throw new Error("API не вернуло ссылку на аудио");
+        const audioData = data.data?.audio || data.data?.url;
+
+        if (!audioData) {
+            throw new Error("API не вернуло аудио данные");
         }
 
-        // Возвращаем URL как есть, браузер сам разберется с воспроизведением
-        return { url: audioUrl };
+        // СЦЕНАРИЙ 1: Это ссылка (обычный режим)
+        if (audioData.startsWith('http')) {
+            return { url: audioData };
+        }
+
+        // СЦЕНАРИЙ 2: Это HEX код (исправление вашей ошибки)
+        const isHex = /^[0-9a-fA-F]+$/.test(audioData) && audioData.length > 100;
+        if (isHex) {
+            console.log("Converting HEX to Audio Blob...");
+            const blob = hexToBlob(audioData, 'audio/mpeg');
+            const blobUrl = URL.createObjectURL(blob);
+            return { url: blobUrl };
+        }
+
+        // СЦЕНАРИЙ 3: Base64 (резервный)
+        return { url: `data:audio/mpeg;base64,${audioData}` };
+
+    } catch (e: any) {
+        console.error("Music Generation Error:", e);
+        throw new Error(e.message || "Не удалось создать музыку");
+    }
+};
+
+        // Пытаемся найти ссылку в разных полях (API может менять структуру)
+        // Обычно это data.data.audio или data.data.url
+        const audioUrl = data.data?.audio || data.data?.url;
+
+        if (audioUrl) {
+            // Если это ссылка (начинается с http), возвращаем как есть
+            if (audioUrl.startsWith('http')) {
+                return { url: audioUrl };
+            }
+            // Если вдруг пришел hex (строка без http и длинная), пробуем сконвертировать (на всякий случай)
+            // Но с output_format: 'url' этого быть не должно.
+            // Если это base64 (редко), возвращаем как data url
+            return { url: audioUrl };
+        }
+
+        throw new Error("API не вернуло ссылку на аудио");
 
     } catch (e: any) {
         console.error("Music Generation Error:", e);
