@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Music, Disc, Download, RefreshCw, Wand2, Mic2, Sparkles } from 'lucide-react';
+import { Music, Disc, Download, RefreshCw, Wand2, Mic2, Sparkles, Globe } from 'lucide-react';
 import { generateMusic, streamChatResponse } from '../services/geminiService';
 import { userService } from '../services/userService';
 import { TelegramUser } from '../types';
@@ -27,6 +27,7 @@ Running through the wires, nowhere to go`;
 export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdateBalance, tgUser }) => {
   const [prompt, setPrompt] = useState('');
   const [lyrics, setLyrics] = useState('');
+  const [lyricsLanguage, setLyricsLanguage] = useState('Russian');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
@@ -50,10 +51,10 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
         modelId: 'google/gemini-2.5-flash',
         history: [],
         message: `Напиши текст песни на основе этого стиля/настроения: "${prompt}". 
+        Язык текста: ${lyricsLanguage}.
         Используй структуру [Verse], [Chorus], [Bridge] и т.д.
         Текст должен быть ритмичным и подходить под жанр.
-        Если в описании стиля указан язык, пиши на нем. Если нет - пиши на русском или английском (как уместнее для жанра).
-        Выводи ТОЛЬКО текст песни без лишних слов.`,
+        Выводи ТОЛЬКО текст песни без лишних слов и вступлений.`,
         systemInstruction: "Ты профессиональный автор песен. Ты пишешь качественные, рифмованные тексты с четкой структурой.",
         onChunk: (chunk) => setLyrics(prev => prev + chunk)
       });
@@ -130,25 +131,43 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2 ml-1">
+                <div className="flex flex-wrap items-end justify-between mb-2 ml-1 gap-2">
                     <label className="block text-sm font-bold text-charcoal flex flex-col sm:flex-row sm:items-center sm:gap-2">
                         <span>Текст песни</span>
-                        <span className="text-xs font-normal text-gray-400">Теги: [Verse], [Chorus]</span>
+                        <span className="text-xs font-normal text-gray-400 hidden sm:inline">Теги: [Verse], [Chorus]</span>
                     </label>
-                    <button
-                        onClick={handleGenerateLyrics}
-                        disabled={isGeneratingLyrics || !prompt}
-                        className={clsx(
-                            "text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 active:scale-95",
-                            !prompt 
-                              ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                              : "bg-pink-50 text-pink-600 hover:bg-pink-100 shadow-sm"
-                        )}
-                        title={!prompt ? "Сначала заполните стиль" : "Сгенерировать текст"}
-                    >
-                        {isGeneratingLyrics ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                        {isGeneratingLyrics ? 'Пишем текст...' : 'Придумать текст'}
-                    </button>
+                    
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Globe size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <select
+                                value={lyricsLanguage}
+                                onChange={(e) => setLyricsLanguage(e.target.value)}
+                                className="appearance-none bg-gray-50 border border-gray-200 text-xs font-bold pl-8 pr-6 py-2 rounded-xl outline-none focus:ring-2 focus:ring-pink-500/50 text-charcoal cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                                <option value="Russian">RU</option>
+                                <option value="English">EN</option>
+                                <option value="Spanish">ES</option>
+                                <option value="French">FR</option>
+                            </select>
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-[10px]">▼</div>
+                        </div>
+
+                        <button
+                            onClick={handleGenerateLyrics}
+                            disabled={isGeneratingLyrics || !prompt}
+                            className={clsx(
+                                "text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 active:scale-95",
+                                !prompt 
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                                : "bg-pink-50 text-pink-600 hover:bg-pink-100 shadow-sm"
+                            )}
+                            title={!prompt ? "Сначала заполните стиль" : "Сгенерировать текст"}
+                        >
+                            {isGeneratingLyrics ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            {isGeneratingLyrics ? 'Пишем...' : 'Сгенерировать'}
+                        </button>
+                    </div>
                 </div>
                 <textarea
                   value={lyrics}

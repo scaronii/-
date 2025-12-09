@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { TEXT_MODELS, VIDEO_MODELS } from '../constants';
 
@@ -322,29 +321,6 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
 
         // СЦЕНАРИЙ 3: Base64 (резервный)
         return { url: `data:audio/mpeg;base64,${audioData}` };
-
-    } catch (e: any) {
-        console.error("Music Generation Error:", e);
-        throw new Error(e.message || "Не удалось создать музыку");
-    }
-};
-
-        // Пытаемся найти ссылку в разных полях (API может менять структуру)
-        // Обычно это data.data.audio или data.data.url
-        const audioUrl = data.data?.audio || data.data?.url;
-
-        if (audioUrl) {
-            // Если это ссылка (начинается с http), возвращаем как есть
-            if (audioUrl.startsWith('http')) {
-                return { url: audioUrl };
-            }
-            // Если вдруг пришел hex (строка без http и длинная), пробуем сконвертировать (на всякий случай)
-            // Но с output_format: 'url' этого быть не должно.
-            // Если это base64 (редко), возвращаем как data url
-            return { url: audioUrl };
-        }
-
-        throw new Error("API не вернуло ссылку на аудио");
 
     } catch (e: any) {
         console.error("Music Generation Error:", e);
