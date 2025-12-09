@@ -259,11 +259,10 @@ export const getVideoContent = async (fileId: string) => {
 
 // --- MUSIC GENERATION (Music 2.0) ---
 
-// Хелпер для конвертации HEX (очищенный от мусора) в Blob
 const hexToBlob = (hex: string, mimeType: string) => {
-  const cleanHex = hex.replace(/[\s\n\r"']+/g, ''); // Удаляем пробелы, кавычки и переносы
+  const cleanHex = hex.replace(/[\s\n\r"']+/g, ''); // Удаляем весь мусор
   if (cleanHex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(cleanHex)) {
-     throw new Error("Invalid hex string received from stream");
+     throw new Error(`Invalid hex string (len: ${cleanHex.length})`);
   }
   const bytes = new Uint8Array(cleanHex.length / 2);
   for (let i = 0; i < cleanHex.length; i += 2) {
@@ -274,14 +273,14 @@ const hexToBlob = (hex: string, mimeType: string) => {
 
 export const generateMusic = async (prompt: string, lyrics: string) => {
     try {
-        console.log("Starting Streaming Music Gen (v5.0)");
+        console.log("Starting Streaming Music Gen (v6.0)");
 
         const payload = {
             model: "music-2.0",
             prompt: prompt,
             lyrics: lyrics,
-            output_format: "hex", // При стриминге MiniMax отдает hex
-            stream: true,         // ВКЛЮЧАЕМ СТРИМИНГ, чтобы избежать 504 ошибки
+            output_format: "hex", // При stream=true MiniMax отдает HEX
+            stream: true,         // ВКЛЮЧАЕМ СТРИМИНГ (Обязательно!)
             audio_setting: {
                 sample_rate: 44100,
                 bitrate: 128000,
@@ -296,14 +295,13 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
         });
 
         if (!response.ok) {
-             // Пытаемся прочитать текст ошибки
              const errText = await response.text();
              throw new Error(`API Error ${response.status}: ${errText.slice(0, 100)}`);
         }
 
         if (!response.body) throw new Error("No response body");
 
-        // Читаем поток данных (Stream Reader)
+        // Читаем поток данных
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let done = false;
@@ -315,7 +313,6 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
             const chunkValue = decoder.decode(value, { stream: true });
             
             // MiniMax стримит данные в формате SSE (data: {...})
-            // Нам нужно распарсить эти кусочки и достать из них "audio" или "data" (hex)
             const lines = chunkValue.split('\n');
             
             for (const line of lines) {
@@ -329,10 +326,10 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
                         if (json.data && json.data.audio) {
                             fullHexData += json.data.audio;
                         } else if (json.audio) {
-                            fullHexData += json.audio; // Иногда структура отличается
+                            fullHexData += json.audio;
                         }
                     } catch (e) {
-                        // Игнорируем битые json чанки
+                        // Игнорируем битые чанки json
                     }
                 }
             }
@@ -350,9 +347,8 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
 
     } catch (e: any) {
         console.error("Music Generation Error:", e);
-        // Если ошибка парсинга JSON (часто бывает при 504, когда приходит HTML), даем понятный ответ
-        if (e.message.includes("Unexpected token")) {
-            throw new Error("Сервер перегружен (Timeout). Попробуйте позже или выберите более короткий текст.");
+        if (e.message.includes("Unexpected token") || e.message.includes("504")) {
+            throw new Error("Сервер перегружен. Попробуйте укоротить текст песни.");
         }
         throw new Error(e.message || "Не удалось создать музыку");
     }

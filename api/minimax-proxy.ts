@@ -1,13 +1,12 @@
-
 export const config = {
-  runtime: 'edge', // Edge функции лучше подходят для стриминга
+  runtime: 'edge', // Edge идеально подходит для стриминга
 };
 
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY;
 const API_HOST = "https://api.minimax.io"; 
 
 export default async function handler(request: Request) {
-  // CORS Preflight
+  // CORS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -20,21 +19,17 @@ export default async function handler(request: Request) {
   }
 
   if (!MINIMAX_KEY) {
-    return new Response(JSON.stringify({ error: 'Server configuration error: Missing MINIMAX_API_KEY' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Server config error: Missing MINIMAX_API_KEY' }), { status: 500 });
   }
 
   const url = new URL(request.url);
-  // Extract the target path from the query parameter 'path'
   const targetPath = url.searchParams.get('path');
   
   if (!targetPath) {
       return new Response(JSON.stringify({ error: 'Missing path parameter' }), { status: 400 });
   }
 
-  // Construct the final URL
   const finalUrl = new URL(API_HOST + targetPath);
-  
-  // Append all other query parameters to the final URL
   url.searchParams.forEach((value, key) => {
       if (key !== 'path') finalUrl.searchParams.append(key, value);
   });
@@ -58,15 +53,12 @@ export default async function handler(request: Request) {
         return new Response(errorText, { status: response.status });
     }
 
-    // ИСПРАВЛЕНИЕ: Передаем response.body напрямую, не дожидаясь загрузки (Stream)
+    // ВАЖНО: Передаем response.body напрямую (Streaming)
     return new Response(response.body, {
       status: response.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        // Важно для стриминга SSE
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
       },
     });
   } catch (error: any) {
