@@ -133,7 +133,7 @@ export const IMAGE_MODELS: AIModel[] = [
     cost: 40 
   },
   { 
-    id: 'black-forest-labs/flux-schnell', 
+    id: 'black-forest-labs/flux-1-schnell', 
     name: 'FLUX Schnell', 
     provider: 'Flux', 
     type: 'image', 

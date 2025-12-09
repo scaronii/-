@@ -128,75 +128,84 @@ export const generateImage = async (
 
     // Vision Remix: Use GPT-4o to describe attachment if present
     if (attachment) {
+        console.log("Describing attachment for remix...");
         const descriptionResponse = await openai.chat.completions.create({
             model: "openai/gpt-4o",
             messages: [
                 { 
                     role: "system", 
-                    content: "You are a visual prompt engineer. Describe the attached image in extreme detail. Then, incorporate the user's request into this description to create a new generation prompt. Return ONLY the prompt." 
+                    content: "You are a visual prompt engineer. Describe the attached image in extreme detail. Return ONLY the description." 
                 },
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: `User request: ${prompt}` },
+                        { type: "text", text: "Describe this image." },
                         { type: "image_url", image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` } }
                     ]
                 }
             ],
         });
-        finalPrompt = descriptionResponse.choices[0]?.message?.content || prompt;
+        const description = descriptionResponse.choices[0]?.message?.content || "";
+        finalPrompt = `${prompt}. Base image description: ${description}`;
     }
 
-    let size: "1024x1024" | "1024x1792" | "1792x1024" = "1024x1024";
-    if (aspectRatio === "16:9") size = "1792x1024";
-    if (aspectRatio === "9:16") size = "1024x1792";
+    // Prepare Chat Completion request for Image Generation
+    // OpenRouter models like Flux/Recraft work best via chat completions where they return the URL in text
+    const messages: any[] = [
+      { 
+        role: "user", 
+        content: `Generate an image based on this description: ${finalPrompt}. Aspect ratio: ${aspectRatio}.` 
+      }
+    ];
 
-    const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}/openai-api/v1` : 'https://openrouter.ai/api/v1';
+    console.log(`Generating image with model: ${modelId} via Chat API...`);
 
-    // Use native fetch to avoid SDK issues with 405 or malformed requests
-    const response = await fetch(`${baseUrl}/images/generations`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer dummy' // Proxy replaces this, but needed for local shim
-        },
-        body: JSON.stringify({
-            model: modelId,
-            prompt: finalPrompt,
-            n: 1,
-            size: size
-        })
+    const response = await openai.chat.completions.create({
+        model: modelId, 
+        messages: messages,
+        // @ts-ignore - 'modalities' is a custom param for some OpenRouter models, ignored by standard SDK typing
+        modalities: ["image", "text"], 
     });
 
-    if (!response.ok) {
-        let errorMessage = `Ошибка ${response.status}`;
-        try {
-            const errData = await response.json();
-            if (errData.error?.message) {
-                errorMessage = errData.error.message;
-            }
-        } catch {
-            const text = await response.text();
-            if (text) errorMessage = text.substring(0, 200); // Limit length
-        }
-        throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    const url = data.data?.[0]?.url;
-
-    if (url) {
-        return {
-            url: url,
-            mimeType: "image/png"
-        };
-    }
+    const messageContent = response.choices[0]?.message?.content;
     
-    throw new Error("API вернул пустой результат");
+    // Check for Markdown image syntax ![alt](url)
+    if (messageContent) {
+        const markdownMatch = messageContent.match(/\!\[.*?\]\((.*?)\)/);
+        if (markdownMatch && markdownMatch[1]) {
+            return { url: markdownMatch[1], mimeType: "image/png" };
+        }
+
+        // Check for direct URL in text
+        const urlMatch = messageContent.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
+        if (urlMatch && urlMatch[1]) {
+             return { url: urlMatch[1], mimeType: "image/png" };
+        }
+        
+        // Check for S3/Blob URLs that might not have extension
+        const looseUrlMatch = messageContent.match(/(https?:\/\/[^\s]+)/);
+        if (looseUrlMatch && looseUrlMatch[1]) {
+            if (looseUrlMatch[1].includes('openrouter') || looseUrlMatch[1].includes('generated')) {
+                 return { url: looseUrlMatch[1], mimeType: "image/png" };
+            }
+        }
+    }
+
+    // Check specific fields if available (some models use tool calls or custom response fields)
+    const rawResponse = response as any;
+    if (rawResponse.choices[0]?.message?.images && rawResponse.choices[0].message.images.length > 0) {
+         return {
+             url: rawResponse.choices[0].message.images[0].url,
+             mimeType: "image/png"
+         };
+    }
+
+    console.error("No image found in response:", messageContent);
+    throw new Error("API вернуло ответ, но без ссылки на изображение.");
 
   } catch (error: any) {
-    console.error("OpenRouter Image Error:", error);
-    throw new Error(error.message || "Ошибка генерации изображения");
+    console.error("Image Gen Error:", error);
+    throw new Error(error.message || "Ошибка генерации. Проверьте баланс OpenRouter.");
   }
 };
 

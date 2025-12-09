@@ -23,31 +23,35 @@ export default async function handler(request: Request) {
   const url = new URL(request.url);
   
   // Remove the local proxy prefix to get the target path
-  // e.g., /openai-api/v1/chat/completions -> v1/chat/completions
   const targetPath = url.pathname.replace(/^\/openai-api\//, '');
   
-  // Route everything to OpenRouter
-  const targetUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
+  // OpenRouter supports image generation via chat completions for many models (Flux, Recraft)
+  // We strictly route to OpenRouter API
+  const finalUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
 
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.delete('x-forwarded-for');
   headers.delete('x-real-ip');
+  headers.delete('content-length'); // Critical: prevent length mismatch
   
-  // OpenRouter Authentication & Identification
   headers.set('Authorization', `Bearer ${OPENROUTER_KEY}`);
   headers.set('HTTP-Referer', SITE_URL);
   headers.set('X-Title', SITE_NAME);
   
+  // Ensure we have a content type
   if (!headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
 
   try {
-    const response = await fetch(targetUrl, {
+    // Read body once into buffer to avoid "body used already" error
+    const bodyBuffer = await request.arrayBuffer();
+
+    const response = await fetch(finalUrl, {
       method: request.method,
       headers: headers,
-      body: request.body,
+      body: bodyBuffer,
       // @ts-ignore
       duplex: 'half', 
     });
