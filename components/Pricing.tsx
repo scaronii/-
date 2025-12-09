@@ -93,7 +93,7 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
               
               <div className="mb-6 md:mb-8 text-center">
                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-lime/20 rounded-2xl text-lime-600 mb-4">
-                    <Star size={24} md:size={32} fill="currentColor" />
+                    <Star className="w-6 h-6 md:w-8 md:h-8" fill="currentColor" />
                  </div>
                  <h3 className="text-3xl md:text-3xl font-bold text-charcoal">{pack.stars}</h3>
                  <span className="text-xs md:text-sm text-gray-400 font-bold uppercase tracking-wider">Звезд</span>

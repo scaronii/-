@@ -124,66 +124,83 @@ export const generateImage = async (
 ): Promise<{ url: string | null, mimeType?: string }> => {
   
   try {
-    // Используем прямой fetch к нашему прокси, чтобы точно передать нестандартные параметры OpenRouter
-    // и избежать проблем с SDK
+    const payload: any = {
+      model: modelId,
+      messages: [
+        {
+          role: 'user',
+          content: prompt || "Generate an image",
+        },
+      ],
+      // Обязательный параметр для OpenRouter Image Gen
+      modalities: ['image', 'text'],
+    };
+
+    // Добавляем image_config только для моделей Gemini, другие могут упасть с ошибкой
+    if (modelId.includes('gemini')) {
+        payload.image_config = { aspect_ratio: aspectRatio };
+    } else {
+        // Для Flux/Recraft добавляем размер в промпт, так как они не всегда поддерживают image_config
+        payload.messages[0].content += ` (Aspect Ratio: ${aspectRatio})`;
+    }
+
+    console.log("Sending Image Request:", payload);
+
     const response = await fetch('/openai-api/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Authorization заголовок подставит наш api/proxy.ts
       },
-      body: JSON.stringify({
-        model: modelId,
-        messages: [
-          {
-            role: 'user',
-            content: prompt || "Generate an image",
-          },
-        ],
-        // ВАЖНО: OpenRouter требует этот массив для генерации картинок
-        modalities: ['image', 'text'],
-        // Опционально: конфиг для некоторых моделей
-        image_config: {
-            aspect_ratio: aspectRatio 
-        }
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
         const errorText = await response.text();
         console.error("Image Gen API Error:", errorText);
-        throw new Error(`Ошибка API: ${response.status} ${response.statusText}`);
+        throw new Error(`Ошибка API (${response.status}): ${errorText.slice(0, 100)}`);
     }
 
     const data = await response.json();
     console.log("OpenRouter Image Response:", data);
 
-    // 1. Пробуем найти картинку в специальном поле messages (Стандарт OpenRouter для Recraft/Flux)
-    // Структура: choices[0].message.images[0].image_url.url
+    // === СТРАТЕГИИ ПОИСКА КАРТИНКИ ===
+
+    // 1. Стандарт OpenRouter (поле images в message)
+    // Пример: data.choices[0].message.images[0].image_url.url
     const choice = data.choices?.[0];
-    const openRouterImage = choice?.message?.images?.[0];
+    const message = choice?.message;
     
-    if (openRouterImage?.image_url?.url) {
-        return {
-            url: openRouterImage.image_url.url,
-            mimeType: "image/png"
-        };
+    // Проверяем массив images (base64 или url)
+    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
+        const img = message.images[0];
+        // Может быть image_url.url или просто url
+        const url = img.image_url?.url || img.url;
+        if (url) return { url, mimeType: "image/png" };
     }
 
-    // 2. Фоллбек: Иногда ссылка приходит в тексте (Markdown)
-    const content = choice?.message?.content || "";
+    // 2. Поиск в тексте (Markdown)
+    // Flux и Recraft часто возвращают ссылку просто в тексте ответа
+    const content = message?.content || "";
+    
+    // Ищем ![alt](url)
     const markdownMatch = content.match(/\!\[.*?\]\((.*?)\)/);
     if (markdownMatch && markdownMatch[1]) {
         return { url: markdownMatch[1], mimeType: "image/png" };
     }
     
-    // 3. Фоллбек: Прямая ссылка
+    // Ищем прямую ссылку (http...png/jpg)
     const urlMatch = content.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
     if (urlMatch && urlMatch[1]) {
          return { url: urlMatch[1], mimeType: "image/png" };
     }
 
-    throw new Error("Картинка не найдена в ответе API");
+    // 3. Формат OpenAI (data.data[0].url) - на случай если OpenRouter смаршрутизировал на DALL-E
+    if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
+        return { url: data.data[0].url, mimeType: "image/png" };
+    }
+
+    console.error("Full Response Dump:", JSON.stringify(data, null, 2));
+    throw new Error("Картинка не найдена в ответе. Проверьте консоль.");
 
   } catch (error: any) {
     console.error("Generate Image Error:", error);

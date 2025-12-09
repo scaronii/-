@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Globe, Bot, User, X, FileText, Image as ImageIcon, ChevronDown, Mic, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Message } from '../types';
@@ -201,7 +202,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center animate-fadeIn px-2">
               <div className="w-12 h-12 md:w-20 md:h-20 bg-lime text-charcoal rounded-2xl md:rounded-3xl flex items-center justify-center mb-4 md:mb-8 shadow-glow transform -rotate-3">
-                <Bot size={24} md:size={40} strokeWidth={1.5} />
+                <Bot className="w-6 h-6 md:w-10 md:h-10" strokeWidth={1.5} />
               </div>
               <h1 className="text-2xl md:text-4xl font-bold text-charcoal mb-2 md:mb-4 tracking-tight">Привет, я UniAI</h1>
               <p className="text-gray-500 max-w-lg mb-6 md:mb-12 text-sm md:text-lg leading-relaxed">
@@ -244,7 +245,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     msg.role === 'user' ? "bg-charcoal text-white" : "bg-white text-charcoal border border-gray-100",
                     msg.isError && "bg-red-50 border-red-100 text-red-500"
                   )}>
-                    {msg.isError ? <AlertTriangle size={16} md:size={18} /> : (msg.role === 'user' ? <User size={16} md:size={18} /> : <Bot size={16} md:size={18} />)}
+                    {msg.isError ? <AlertTriangle className="w-4 h-4 md:w-[18px] md:h-[18px]" /> : (msg.role === 'user' ? <User className="w-4 h-4 md:w-[18px] md:h-[18px]" /> : <Bot className="w-4 h-4 md:w-[18px] md:h-[18px]" />)}
                   </div>
                   
                   {/* Message Bubble */}
@@ -350,7 +351,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 )}
                 title="Прикрепить файл"
               >
-                <Paperclip size={18} md:size={20} />
+                <Paperclip className="w-[18px] h-[18px] md:w-5 md:h-5" />
               </button>
 
                <button 
@@ -362,7 +363,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 )}
                 title="Голосовой ввод"
               >
-                <Mic size={18} md:size={20} />
+                <Mic className="w-[18px] h-[18px] md:w-5 md:h-5" />
               </button>
             </div>
 
@@ -391,7 +392,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 )}
                 title="Поиск в интернете"
               >
-                <Globe size={18} md:size={20} />
+                <Globe className="w-[18px] h-[18px] md:w-5 md:h-5" />
               </button>
               
               <button 
@@ -399,7 +400,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 disabled={(!input.trim() && !attachment) || isTyping}
                 className="w-10 h-10 md:w-14 md:h-14 bg-charcoal text-white rounded-full flex items-center justify-center hover:bg-black hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all shadow-lg shadow-charcoal/20"
               >
-                <Send size={20} md:size={24} className={input.trim() ? "ml-0.5 md:ml-1" : ""} />
+                <Send className={clsx(input.trim() ? "ml-0.5 md:ml-1" : "", "w-5 h-5 md:w-6 md:h-6")} />
               </button>
             </div>
           </form>

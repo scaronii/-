@@ -315,7 +315,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                       onClick={() => handleDownload(generatedImage)}
                       className="bg-white text-charcoal p-3 md:p-4 rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
-                      <Download size={20} md:size={24} />
+                      <Download className="w-5 h-5 md:w-6 md:h-6" />
                     </button>
                   </div>
                 </>
@@ -325,7 +325,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                 </div>
               ) : (
                 <div className="text-center text-gray-300">
-                  <ImageIconSmall size={60} md:size={80} className="mx-auto mb-4 md:mb-6 opacity-30" />
+                  <ImageIconSmall className="mx-auto mb-4 md:mb-6 opacity-30 w-[60px] h-[60px] md:w-20 md:h-20" />
                   <p className="text-lg md:text-xl font-medium">Здесь появится шедевр</p>
                 </div>
               )}
