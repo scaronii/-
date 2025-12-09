@@ -1,4 +1,3 @@
-
 export const config = {
   runtime: 'edge',
 };
@@ -8,7 +7,7 @@ const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
 const SITE_NAME = 'UniAI Platform';
 
 export default async function handler(request: Request) {
-  // Handle CORS Preflight
+  // 1. Обработка CORS (Preflight запросы)
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -20,39 +19,77 @@ export default async function handler(request: Request) {
     });
   }
 
+  // 2. Проверка наличия ключа API
+  if (!OPENROUTER_KEY) {
+    console.error("❌ Ошибка: Не найден OPENROUTER_API_KEY в переменных окружения");
+    return new Response(JSON.stringify({ error: 'Server configuration error: Missing API Key' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
+
   const url = new URL(request.url);
-  // Strip the /openai-api/ prefix to get the target path
+  // Убираем префикс /openai-api/ чтобы получить путь для OpenRouter
   const targetPath = url.pathname.replace(/^\/openai-api\//, '');
-  // Construct the final URL (OpenRouter)
   const finalUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
 
+  // 3. Подготовка заголовков
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.delete('content-length');
+  headers.delete('connection'); // Важно удалить connection header
+  
   headers.set('Authorization', `Bearer ${OPENROUTER_KEY}`);
   headers.set('HTTP-Referer', SITE_URL);
   headers.set('X-Title', SITE_NAME);
   
-  if (!headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
+  // Убедимся, что Content-Type проброшен (обычно application/json)
+  if (!headers.has('content-type') && request.headers.get('content-type')) {
+    headers.set('content-type', request.headers.get('content-type')!);
   }
 
   try {
-    // 1. Read the request body fully
-    const bodyBuffer = await request.arrayBuffer();
-
-    // 2. Forward request to OpenRouter
+    // 4. Проксирование запроса (Стриминг)
+    // Мы передаем request.body напрямую, не ожидая полной загрузки (arrayBuffer)
     const backendResponse = await fetch(finalUrl, {
       method: request.method,
       headers: headers,
-      body: bodyBuffer,
+      body: request.body, 
     });
 
-    // 3. Read the response body fully (prevents streaming encoding errors in browser)
-    const responseData = await backendResponse.arrayBuffer();
-
-    // 4. Construct clean headers for the client
-    const newHeaders = new Headers();
-    newHeaders.set('Access-Control-Allow-Origin', '*');
-    newHeaders.set('Content-Type', backendResponse.headers.get('content-type') || 'application/json');
+    // 5. Подготовка ответа клиенту
+    const responseHeaders = new Headers(backendResponse.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
     
+    // Важно: переписываем Content-Encoding, чтобы избежать ошибок сжатия
+    responseHeaders.delete('content-encoding'); 
+    responseHeaders.delete('content-length');
+
+    // Если OpenRouter вернул ошибку (например, 401 или 400), мы логируем её тело
+    if (!backendResponse.ok) {
+        const errorText = await backendResponse.text();
+        console.error(`OpenRouter Error (${backendResponse.status}):`, errorText);
+        return new Response(errorText, {
+            status: backendResponse.status,
+            headers: responseHeaders
+        });
+    }
+
+    // Возвращаем поток (body) напрямую, чтобы избежать таймаутов на Vercel
+    return new Response(backendResponse.body, {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      headers: responseHeaders
+    });
+
+  } catch (error: any) {
+    console.error("Proxy Internal Error:", error);
+    return new Response(JSON.stringify({ error: error.message || "Proxy error" }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+}
