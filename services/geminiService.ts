@@ -124,27 +124,51 @@ export const generateImage = async (
 ): Promise<{ url: string | null, mimeType?: string }> => {
   
   try {
+    let content: any;
+
+    // Если есть вложение (Vision Remix), используем массив объектов
+    if (attachment) {
+      content = [
+        { type: "text", text: prompt || "Generate an image" },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${attachment.mimeType};base64,${attachment.data}`
+          }
+        }
+      ];
+    } else {
+      // Если вложения нет, отправляем простую строку (согласно документации OpenRouter)
+      content = prompt || "Generate an image";
+    }
+
     const payload: any = {
       model: modelId,
       messages: [
         {
           role: 'user',
-          content: prompt || "Generate an image",
+          content: content,
         },
       ],
-      // Обязательный параметр для OpenRouter Image Gen
+      // Обязательный параметр согласно документации OpenRouter
       modalities: ['image', 'text'],
     };
 
-    // Добавляем image_config только для моделей Gemini, другие могут упасть с ошибкой
+    // Добавляем настройки для Gemini
     if (modelId.includes('gemini')) {
         payload.image_config = { aspect_ratio: aspectRatio };
-    } else {
-        // Для Flux/Recraft добавляем размер в промпт, так как они не всегда поддерживают image_config
+    } else if (attachment && Array.isArray(content)) {
+        // Для других моделей (Flux/Recraft) добавляем аспект в текст, если он передан как массив
+        const textPart = content.find((p: any) => p.type === 'text');
+        if (textPart) {
+           textPart.text += ` (Aspect Ratio: ${aspectRatio})`;
+        }
+    } else if (typeof content === 'string') {
+        // Добавляем аспект в строку промпта
         payload.messages[0].content += ` (Aspect Ratio: ${aspectRatio})`;
     }
 
-    console.log("Sending Image Request:", payload);
+    console.log("Sending Image Request:", JSON.stringify(payload, null, 2));
 
     const response = await fetch('/openai-api/chat/completions', {
       method: 'POST',
@@ -166,44 +190,42 @@ export const generateImage = async (
     // === СТРАТЕГИИ ПОИСКА КАРТИНКИ ===
 
     // 1. Стандарт OpenRouter (поле images в message)
-    // Пример: data.choices[0].message.images[0].image_url.url
     const choice = data.choices?.[0];
     const message = choice?.message;
     
-    // Проверяем массив images (base64 или url)
     if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
         const img = message.images[0];
-        // Может быть image_url.url или просто url
+        // OpenRouter может вернуть структуру { image_url: { url: ... } } или просто { url: ... }
         const url = img.image_url?.url || img.url;
         if (url) return { url, mimeType: "image/png" };
     }
 
-    // 2. Поиск в тексте (Markdown)
-    // Flux и Recraft часто возвращают ссылку просто в тексте ответа
-    const content = message?.content || "";
+    // 2. Поиск в тексте (Markdown или прямая ссылка) - Fallback для моделей вроде Flux/Recraft
+    const textContent = message?.content || "";
     
-    // Ищем ![alt](url)
-    const markdownMatch = content.match(/\!\[.*?\]\((.*?)\)/);
+    const markdownMatch = textContent.match(/\!\[.*?\]\((.*?)\)/);
     if (markdownMatch && markdownMatch[1]) {
         return { url: markdownMatch[1], mimeType: "image/png" };
     }
     
-    // Ищем прямую ссылку (http...png/jpg)
-    const urlMatch = content.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
+    const urlMatch = textContent.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
     if (urlMatch && urlMatch[1]) {
          return { url: urlMatch[1], mimeType: "image/png" };
     }
 
-    // 3. Формат OpenAI (data.data[0].url) - на случай если OpenRouter смаршрутизировал на DALL-E
+    // 3. Формат OpenAI (data.data[0].url)
     if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
         return { url: data.data[0].url, mimeType: "image/png" };
     }
 
-    console.error("Full Response Dump:", JSON.stringify(data, null, 2));
     throw new Error("Картинка не найдена в ответе. Проверьте консоль.");
 
   } catch (error: any) {
     console.error("Generate Image Error:", error);
+    // Если ошибка всё ещё "string did not match...", значит она происходит ДО fetch
+    if (error.name === 'InvalidCharacterError' || error.message.includes('match the expected pattern')) {
+        throw new Error("Ошибка кодировки (Cyrillic Base64). Попробуйте промпт на английском.");
+    }
     throw new Error(error.message || "Ошибка генерации изображения");
   }
 };
