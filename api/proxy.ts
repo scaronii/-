@@ -59,6 +59,12 @@ export default async function handler(request: Request) {
     // Create a new response to allow adding CORS headers
     const newHeaders = new Headers(response.headers);
     newHeaders.set('Access-Control-Allow-Origin', '*');
+    
+    // CRITICAL FIX: Remove content-encoding and transfer-encoding to prevent browser decoding issues
+    // The Edge Runtime or fetch API usually handles decompression, but passing the header
+    // causes the browser to attempt decompression again on already decompressed data.
+    newHeaders.delete('content-encoding');
+    newHeaders.delete('transfer-encoding');
 
     return new Response(response.body, {
       status: response.status,

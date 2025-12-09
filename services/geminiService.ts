@@ -161,9 +161,7 @@ export const generateImage = async (
           content: content,
         },
       ],
-      // Внимание: некоторые модели требуют modalities, другие ломаются с ним. 
-      // Для Flux/Recraft на OpenRouter обычно безопаснее НЕ передавать его, если не уверены.
-      // Если модель специфичная, OpenRouter сам подставит нужные флаги.
+      // modalities: ['image'] - удалено для максимальной совместимости
     };
 
     console.log("Sending Image Request Payload:", JSON.stringify(payload, null, 2));
@@ -230,10 +228,9 @@ export const generateImage = async (
 
   } catch (error: any) {
     console.error("Generate Image Error Details:", error);
-    if (error.name === 'InvalidCharacterError' || error.message.includes('match the expected pattern')) {
-        throw new Error("Ошибка кодировки данных. Попробуйте обновить страницу.");
-    }
-    throw error; // Пробрасываем оригинальную ошибку с текстом от API
+    // Прокси теперь удаляет content-encoding, поэтому ошибка InvalidCharacterError не должна возникать
+    // Пробрасываем оригинальную ошибку, чтобы видеть реальную причину
+    throw error; 
   }
 };
 
