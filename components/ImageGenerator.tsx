@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X } from 'lucide-react';
+import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X, AlertCircle } from 'lucide-react';
 import { IMAGE_MODELS } from '../constants';
 import { generateImage } from '../services/geminiService';
 import { clsx } from 'clsx';
@@ -127,6 +127,8 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
         setError('Не удалось создать изображение. Попробуйте другой запрос.');
       }
     } catch (err: any) {
+      console.error("Image Gen Error Caught in Component:", err);
+      // Display detailed error message from the service
       setError(err.message || 'Ошибка генерации. Проверьте соединение или выберите другую модель.');
     } finally {
       setIsGenerating(false);
@@ -320,8 +322,9 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                   </div>
                 </>
               ) : error ? (
-                <div className="bg-red-50 text-red-500 text-center p-6 md:p-8 rounded-3xl max-w-md mx-4">
-                  <p className="font-bold text-sm md:text-base">{error}</p>
+                <div className="bg-red-50 text-red-500 text-center p-6 md:p-8 rounded-3xl max-w-lg mx-4 flex flex-col items-center gap-3">
+                  <AlertCircle size={32} />
+                  <p className="font-bold text-sm md:text-base break-words w-full">{error}</p>
                 </div>
               ) : (
                 <div className="text-center text-gray-300">
