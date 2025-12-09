@@ -37,8 +37,8 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const modelInfo = IMAGE_MODELS.find(m => m.id === selectedModel);
-  // Fix: Use nullish coalescing (??) because cost can be 0 (free), and 0 || 50 would result in 50.
-  const cost = modelInfo?.cost ?? 50;
+  // Robustly handle 0 cost (free models)
+  const cost = (modelInfo && modelInfo.cost !== undefined) ? modelInfo.cost : 50;
 
   const handleRandomPrompt = () => {
     const random = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
@@ -92,7 +92,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const handleGenerate = async () => {
     if (!prompt) return;
 
-    if (balance < cost) {
+    if (cost > 0 && balance < cost) {
        setError(`Недостаточно средств. Стоимость: ${cost} ★`);
        return;
     }
@@ -113,15 +113,20 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
         
         // Deduct balance
         if (tgUser) {
-           const newBal = await userService.deductTokens(tgUser.id, cost);
-           if (newBal !== undefined) onUpdateBalance(newBal);
+           // Only deduct if cost > 0
+           if (cost > 0) {
+              const newBal = await userService.deductTokens(tgUser.id, cost);
+              if (newBal !== undefined) onUpdateBalance(newBal);
+           }
            
            // Save to DB and update stats
            userService.saveGeneratedImage(tgUser.id, result.url!, prompt, selectedModel);
            if (onImageGenerated) onImageGenerated();
         } else {
            // Local demo mode
-           onUpdateBalance(balance - cost);
+           if (cost > 0) {
+              onUpdateBalance(balance - cost);
+           }
         }
 
       } else {
@@ -296,10 +301,13 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                 <button
                   onClick={handleGenerate}
                   disabled={!prompt || isGenerating}
-                  className="w-full sm:w-auto bg-lime hover:bg-[#b0e61a] text-charcoal px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-glow hover:scale-105 active:scale-95 text-base"
+                  className={clsx(
+                    "w-full sm:w-auto px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-glow hover:scale-105 active:scale-95 text-base",
+                    cost === 0 ? "bg-green-500 hover:bg-green-600 text-white" : "bg-lime hover:bg-[#b0e61a] text-charcoal"
+                  )}
                 >
                   {isGenerating ? <RefreshCw className="animate-spin" size={20} /> : <Wand2 size={20} />}
-                  Создать ({cost === 0 ? 'Бесплатно' : `${cost} ★`})
+                  {cost === 0 ? 'Создать (Бесплатно)' : `Создать (${cost} ★)`}
                 </button>
               </div>
             </div>
