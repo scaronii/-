@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, RefreshCw, Video, Play, Clock, Sparkles, Film, Paperclip, X } from 'lucide-react';
+import { Download, RefreshCw, Video, Play, Clock, Sparkles, Film, Paperclip, X, Send } from 'lucide-react';
 import { VIDEO_MODELS } from '../constants';
 import { generateVideo, pollVideoStatus, getVideoContent } from '../services/geminiService';
 import { clsx } from 'clsx';
@@ -25,6 +25,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
+  const [isSending, setIsSending] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +73,45 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+  };
+
+  const handleSendToChat = async () => {
+    if (!generatedVideo || !tgUser) return;
+    
+    setIsSending(true);
+
+    try {
+      const res = await fetch('/api/send-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: tgUser.id,
+          videoUrl: generatedVideo,
+          caption: `Prompt: ${prompt}\nModel: ${VIDEO_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+         if ((window as any).Telegram?.WebApp) {
+             (window as any).Telegram.WebApp.showPopup({
+                 title: 'Готово!',
+                 message: 'Видео отправлено вам в чат.',
+                 buttons: [{type: 'ok'}]
+             });
+         } else {
+             alert('Видео отправлено вам в чат!');
+         }
+      } else {
+         alert('Ошибка отправки: ' + (data.error || 'Unknown'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось отправить видео. Попробуйте еще раз.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -348,6 +388,22 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                      className="max-w-full max-h-[500px] rounded-[2rem] shadow-lg"
                   />
                   <div className="absolute bottom-6 right-6 flex gap-3">
+                     {tgUser && (
+                        <button 
+                          onClick={handleSendToChat}
+                          disabled={isSending}
+                          className="bg-blue-600 text-white px-5 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
+                        >
+                          {isSending ? (
+                              <RefreshCw className="animate-spin w-5 h-5" />
+                          ) : (
+                              <Send className="w-5 h-5" />
+                          )}
+                          <span className="text-sm font-bold hidden sm:inline">
+                              {isSending ? 'Отправка...' : 'В бот'}
+                          </span>
+                        </button>
+                     )}
                      <button 
                        onClick={() => handleDownload(generatedVideo!)}
                        className="bg-white text-charcoal p-3 rounded-full shadow-lg hover:scale-110 transition-transform z-10"

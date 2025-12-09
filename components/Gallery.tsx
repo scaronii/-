@@ -58,15 +58,23 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
     if (!selectedItem || !user) return;
     setIsSending(true);
     
+    const apiEndpoint = activeTab === 'images' ? '/api/send-image' : '/api/send-video';
+    const body: any = {
+          userId: user.id,
+          caption: `Prompt: ${selectedItem.prompt}\n(из галереи UniAI)`
+    };
+
+    if (activeTab === 'images') {
+        body.imageUrl = selectedItem.url;
+    } else {
+        body.videoUrl = selectedItem.url;
+    }
+    
     try {
-      const res = await fetch('/api/send-image', {
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          imageUrl: selectedItem.url,
-          caption: `Prompt: ${selectedItem.prompt}\n(из галереи UniAI)`
-        })
+        body: JSON.stringify(body)
       });
       
       const data = await res.json();
@@ -75,11 +83,11 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
          if ((window as any).Telegram?.WebApp) {
              (window as any).Telegram.WebApp.showPopup({
                  title: 'Готово!',
-                 message: 'Изображение отправлено в чат.',
+                 message: 'Отправлено в чат.',
                  buttons: [{type: 'ok'}]
              });
          } else {
-             alert('Картинка отправлена!');
+             alert('Отправлено!');
          }
       } else {
          alert('Ошибка отправки: ' + (data.error || 'Unknown'));
@@ -169,7 +177,7 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
                )}
             </div>
             <div className="p-4 bg-surface border-t border-gray-100 flex justify-end gap-3">
-               {activeTab === 'images' && user ? (
+               {user ? (
                    <button 
                      onClick={handleSendToChat}
                      disabled={isSending}
