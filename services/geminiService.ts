@@ -259,8 +259,9 @@ export const getVideoContent = async (fileId: string) => {
 
 // --- MUSIC GENERATION (Music 2.0) ---
 
+// Хелпер для конвертации HEX в Blob
 const hexToBlob = (hex: string, mimeType: string) => {
-  const cleanHex = hex.replace(/[\s\n\r"']+/g, ''); // Удаляем весь мусор
+  const cleanHex = hex.replace(/[\s\n\r"']+/g, '');
   if (cleanHex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(cleanHex)) {
      throw new Error(`Invalid hex string (len: ${cleanHex.length})`);
   }
@@ -273,14 +274,14 @@ const hexToBlob = (hex: string, mimeType: string) => {
 
 export const generateMusic = async (prompt: string, lyrics: string) => {
     try {
-        console.log("Starting Streaming Music Gen (v6.0)");
+        console.log("Starting Streaming Music Gen (v7.0 - Buffered)");
 
         const payload = {
             model: "music-2.0",
             prompt: prompt,
             lyrics: lyrics,
-            output_format: "hex", // При stream=true MiniMax отдает HEX
-            stream: true,         // ВКЛЮЧАЕМ СТРИМИНГ (Обязательно!)
+            output_format: "hex", 
+            stream: true,         
             audio_setting: {
                 sample_rate: 44100,
                 bitrate: 128000,
@@ -301,45 +302,78 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
 
         if (!response.body) throw new Error("No response body");
 
-        // Читаем поток данных
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let done = false;
         let fullHexData = "";
+        
+        // БУФЕР ДЛЯ СКЛЕЙКИ КУСОЧКОВ
+        let buffer = "";
 
         while (!done) {
             const { value, done: doneReading } = await reader.read();
             done = doneReading;
-            const chunkValue = decoder.decode(value, { stream: true });
+            const chunkValue = decoder.decode(value, { stream: !done });
             
-            // MiniMax стримит данные в формате SSE (data: {...})
-            const lines = chunkValue.split('\n');
+            // Добавляем новый кусок в буфер
+            buffer += chunkValue;
             
+            // Разбиваем буфер на строки
+            const lines = buffer.split('\n');
+            
+            // Последняя строка может быть неполной, сохраняем её обратно в буфер
+            // Если поток закончился (done), то обрабатываем всё
+            buffer = done ? "" : lines.pop() || "";
+
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const jsonStr = line.slice(6).trim();
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+
+                // Лог для отладки (покажет формат данных в консоли)
+                if (fullHexData.length === 0) console.log("Stream Line Sample:", trimmedLine.substring(0, 50));
+
+                // Обработка SSE (data: ...)
+                if (trimmedLine.startsWith('data: ')) {
+                    const jsonStr = trimmedLine.slice(6).trim();
                     if (jsonStr === '[DONE]') continue;
                     
                     try {
                         const json = JSON.parse(jsonStr);
-                        // Собираем кусочки hex-кода
+                        // Ищем аудио в разных полях
                         if (json.data && json.data.audio) {
                             fullHexData += json.data.audio;
                         } else if (json.audio) {
                             fullHexData += json.audio;
+                        } else if (json.data && json.data.hex) { // иногда бывает hex
+                             fullHexData += json.data.hex;
+                        }
+                        
+                        // Проверка на ошибки внутри стрима
+                        if (json.base_resp && json.base_resp.status_code !== 0) {
+                            console.error("Stream Error:", json.base_resp);
                         }
                     } catch (e) {
-                        // Игнорируем битые чанки json
+                        // Игнорируем ошибки парсинга конкретной строки
                     }
+                } 
+                // Обработка обычного JSON (если вдруг пришел не SSE, а ошибка)
+                else if (trimmedLine.startsWith('{')) {
+                    try {
+                        const json = JSON.parse(trimmedLine);
+                        if (json.base_resp && json.base_resp.status_code !== 0) {
+                             throw new Error(`API Error: ${json.base_resp.status_msg}`);
+                        }
+                    } catch(e) {}
                 }
             }
         }
 
         if (!fullHexData) {
-            throw new Error("Не удалось получить аудио данные из потока");
+            throw new Error("Стрим завершен, но аудио-данные не найдены. Проверьте консоль.");
         }
 
-        console.log("Stream finished. Converting Hex to Blob...");
+        console.log(`Stream finished. Got ${fullHexData.length} bytes of Hex.`);
+        
         const blob = hexToBlob(fullHexData, 'audio/mpeg');
         const blobUrl = URL.createObjectURL(blob);
         
@@ -347,9 +381,6 @@ export const generateMusic = async (prompt: string, lyrics: string) => {
 
     } catch (e: any) {
         console.error("Music Generation Error:", e);
-        if (e.message.includes("Unexpected token") || e.message.includes("504")) {
-            throw new Error("Сервер перегружен. Попробуйте укоротить текст песни.");
-        }
         throw new Error(e.message || "Не удалось создать музыку");
     }
 };

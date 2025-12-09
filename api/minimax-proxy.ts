@@ -1,3 +1,4 @@
+
 export const config = {
   runtime: 'edge', // Edge идеально подходит для стриминга
 };
@@ -53,12 +54,15 @@ export default async function handler(request: Request) {
         return new Response(errorText, { status: response.status });
     }
 
-    // ВАЖНО: Передаем response.body напрямую (Streaming)
+    // ВАЖНО: Передаем response.body напрямую (Streaming) с правильными заголовками
     return new Response(response.body, {
       status: response.status,
       headers: {
-        'Content-Type': 'application/json',
+        // Копируем тип контента от MiniMax или ставим event-stream по умолчанию
+        'Content-Type': response.headers.get('content-type') || 'text/event-stream',
         'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
       },
     });
   } catch (error: any) {
