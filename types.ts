@@ -21,7 +21,7 @@ export interface ChatSession {
 export interface AIModel {
   id: string;
   name: string;
-  provider: 'OpenAI' | 'Google' | 'Anthropic' | 'DeepSeek' | 'xAI' | 'Moonshot' | 'Recraft' | 'Flux' | 'ByteDance' | 'Qwen' | 'Ideogram';
+  provider: 'OpenAI' | 'Google' | 'Anthropic' | 'DeepSeek' | 'xAI' | 'Moonshot' | 'Recraft' | 'Flux' | 'ByteDance' | 'Qwen' | 'Ideogram' | 'Sourceful';
   type: 'text' | 'image' | 'video';
   isNew?: boolean;
   description?: string;

@@ -112,20 +112,40 @@ export const IMAGE_MODELS: AIModel[] = [
     cost: 0 
   },
   { 
-    id: 'black-forest-labs/flux-1.1-pro', 
-    name: 'Flux 1.1 Pro', 
-    provider: 'Flux', 
+    id: 'google/gemini-3-pro-image-preview', 
+    name: 'Nano Banana Pro', 
+    provider: 'Google', 
     type: 'image', 
-    description: 'Фотореализм высшего качества', 
-    cost: 40 
+    description: 'Gemini 3 Pro Image Preview', 
+    cost: 25,
+    isNew: true
   },
   { 
-    id: 'recraft-ai/recraft-v3', 
-    name: 'Recraft V3', 
-    provider: 'Recraft', 
+    id: 'openai/gpt-5-image-mini', 
+    name: 'GPT-5 Image Mini', 
+    provider: 'OpenAI', 
     type: 'image', 
-    description: 'Идеален для векторов и текста', 
-    cost: 30 
+    description: 'Быстрая генерация от OpenAI', 
+    cost: 15,
+    isNew: true
+  },
+  { 
+    id: 'openai/gpt-5-image', 
+    name: 'GPT-5 Image', 
+    provider: 'OpenAI', 
+    type: 'image', 
+    description: 'Флагманская модель OpenAI', 
+    cost: 40,
+    isNew: true
+  },
+  { 
+    id: 'black-forest-labs/flux.2-flex', 
+    name: 'FLUX.2 Flex', 
+    provider: 'Flux', 
+    type: 'image', 
+    description: 'Гибкая модель нового поколения', 
+    cost: 20,
+    isNew: true
   },
   { 
     id: 'black-forest-labs/flux.2-pro', 
@@ -133,18 +153,17 @@ export const IMAGE_MODELS: AIModel[] = [
     provider: 'Flux', 
     type: 'image', 
     description: 'Новейшая модель Flux (SOTA)', 
-    cost: 60,
-    isNew: true
+    cost: 60
   },
-  // Others
   { 
-    id: 'ideogram/ideogram-v2', 
-    name: 'Ideogram V2', 
-    provider: 'Ideogram', 
+    id: 'sourceful/riverflow-v2-max-preview', 
+    name: 'Riverflow V2 Max', 
+    provider: 'Sourceful', 
     type: 'image', 
-    description: 'Типографика и текст', 
-    cost: 25 
-  },
+    description: 'Реалистичность нового уровня', 
+    cost: 45,
+    isNew: true
+  }
 ];
 
 export const VIDEO_MODELS: AIModel[] = [
