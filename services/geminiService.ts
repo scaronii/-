@@ -126,33 +126,28 @@ export const generateImage = async (
   try {
     let content: any;
 
-    // Если есть вложение (Vision Remix), используем массив объектов
+    // СТРАТЕГИЯ 1: Если есть картинка-референс (Vision Remix)
     if (attachment) {
+      // Для Vision моделей контент должен быть массивом
       content = [
-        { type: "text", text: prompt || "Generate an image" },
+        { 
+          type: "text", 
+          text: (prompt || "Generate an image") + ` (Aspect Ratio: ${aspectRatio})` 
+        },
         {
           type: "image_url",
           image_url: {
+            // attachment.data уже должен быть base64 строкой (ASCII), это безопасно
             url: `data:${attachment.mimeType};base64,${attachment.data}`
           }
         }
       ];
     } else {
-      // Стандартный текстовый промпт
-      content = prompt || "Generate an image";
+      // СТРАТЕГИЯ 2: Только текст
+      // OpenRouter рекомендует отправлять просто строку, если нет картинок
+      content = (prompt || "Generate an image") + ` (Aspect Ratio: ${aspectRatio})`;
     }
 
-    // Добавляем аспект в текст промпта (самый надежный способ для OpenRouter моделей)
-    const aspectPrompt = ` Aspect ratio: ${aspectRatio}.`;
-    
-    if (Array.isArray(content)) {
-        const textItem = content.find((i: any) => i.type === 'text');
-        if (textItem) textItem.text += aspectPrompt;
-    } else {
-        content += aspectPrompt;
-    }
-
-    // Упрощенный payload без лишних параметров, которые могут вызвать 400 Bad Request
     const payload: any = {
       model: modelId,
       messages: [
@@ -161,76 +156,77 @@ export const generateImage = async (
           content: content,
         },
       ],
-      // modalities: ['image'] - удалено для максимальной совместимости
+      // ВАЖНО: Согласно документации OpenRouter, этот параметр обязателен для генерации
+      modalities: ['image', 'text'],
     };
 
+    // Для Gemini добавляем специальный конфиг, но оставляем размер и в промпте для надежности
+    if (modelId.includes('gemini')) {
+        payload.image_config = { aspect_ratio: aspectRatio };
+    }
+
+    // Логируем, чтобы вы видели, что уходит на сервер
     console.log("Sending Image Request Payload:", JSON.stringify(payload, null, 2));
 
     const response = await fetch('/openai-api/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // 'Authorization' добавляется в proxy.ts, здесь не нужен
       },
+      // JSON.stringify безопасно кодирует Unicode (русский текст) в \uXXXX
+      // Это предотвращает ошибку "string did not match the expected pattern"
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error("Image Gen API Error Status:", response.status);
-        console.error("Image Gen API Error Body:", errorText);
-        
-        let errorMessage = `Ошибка API (${response.status})`;
-        try {
-            const errorJson = JSON.parse(errorText);
-            if (errorJson.error?.message) {
-                errorMessage += `: ${errorJson.error.message}`;
-            }
-        } catch (e) {
-            errorMessage += `: ${errorText.slice(0, 100)}`;
-        }
-        throw new Error(errorMessage);
+        console.error("Image Gen API Error:", errorText);
+        throw new Error(`Ошибка API (${response.status}): ${errorText.slice(0, 100)}`);
     }
 
     const data = await response.json();
     console.log("OpenRouter Image Response:", data);
 
-    // === СТРАТЕГИИ ПОИСКА КАРТИНКИ ===
+    // === ПОИСК КАРТИНКИ В ОТВЕТЕ ===
 
     const choice = data.choices?.[0];
     const message = choice?.message;
-
-    // 1. Стандарт OpenRouter / OpenAI (поле images в message или data)
+    
+    // 1. Стандартный формат (поле images)
     if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
         const img = message.images[0];
         const url = img.image_url?.url || img.url;
         if (url) return { url, mimeType: "image/png" };
     }
-    
-    // 2. Формат OpenAI legacy (корневой data array)
-    if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
-        return { url: data.data[0].url, mimeType: "image/png" };
-    }
 
-    // 3. Поиск в тексте (Markdown или прямая ссылка) - Fallback для Flux/Recraft
+    // 2. Поиск в тексте ответа (Markdown ссылка) - часто бывает у Flux/Recraft
     const textContent = message?.content || "";
-    
     const markdownMatch = textContent.match(/\!\[.*?\]\((.*?)\)/);
     if (markdownMatch && markdownMatch[1]) {
         return { url: markdownMatch[1], mimeType: "image/png" };
     }
     
+    // 3. Поиск прямой ссылки в тексте
     const urlMatch = textContent.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
     if (urlMatch && urlMatch[1]) {
          return { url: urlMatch[1], mimeType: "image/png" };
     }
 
-    throw new Error("API вернуло успешный ответ, но картинка не найдена. Проверьте консоль.");
+    // 4. Старый формат OpenAI
+    if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
+        return { url: data.data[0].url, mimeType: "image/png" };
+    }
+
+    throw new Error("Картинка не найдена в ответе API.");
 
   } catch (error: any) {
-    console.error("Generate Image Error Details:", error);
-    // Прокси теперь удаляет content-encoding, поэтому ошибка InvalidCharacterError не должна возникать
-    // Пробрасываем оригинальную ошибку, чтобы видеть реальную причину
-    throw error; 
+    console.error("Generate Image Critical Error:", error);
+    // Проверка на ту самую ошибку
+    if (error.name === 'InvalidCharacterError' || error.message.includes('match the expected pattern')) {
+        throw new Error("Критическая ошибка кодировки. Проверьте прокси или браузер.");
+    }
+    throw new Error(error.message || "Не удалось создать изображение");
   }
 };
 
