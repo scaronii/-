@@ -103,64 +103,39 @@ export const TEXT_MODELS: AIModel[] = [
 ];
 
 export const IMAGE_MODELS: AIModel[] = [
-  // Google Nano Banana Series (NEW)
   { 
-    id: 'google/gemini-2.5-flash-image', 
-    name: 'Nano Banana', 
+    id: 'google/gemini-2.5-flash-image-preview', 
+    name: 'Gemini 2.5 Image', 
     provider: 'Google', 
     type: 'image', 
-    description: 'Gemini 2.5 Flash Image', 
-    isNew: true,
+    description: 'Быстрая и точная генерация от Google', 
     cost: 5 
   },
   { 
-    id: 'google/gemini-3-pro-image-preview', 
-    name: 'Nano Banana Pro', 
-    provider: 'Google', 
-    type: 'image', 
-    description: 'Gemini 3 Pro Image', 
-    isNew: true,
-    cost: 15 
-  },
-
-  // Flux Series (Top Tier on OpenRouter)
-  { 
     id: 'black-forest-labs/flux-1.1-pro', 
-    name: 'FLUX 1.1 Pro', 
+    name: 'Flux 1.1 Pro', 
     provider: 'Flux', 
     type: 'image', 
-    description: 'Фотореализм (Top Tier)', 
+    description: 'Фотореализм высшего качества', 
     cost: 40 
   },
-  { 
-    id: 'black-forest-labs/flux-1-schnell', 
-    name: 'FLUX Schnell', 
-    provider: 'Flux', 
-    type: 'image', 
-    description: 'Быстрая генерация', 
-    cost: 10 
-  },
-
-  // Recraft
   { 
     id: 'recraft-ai/recraft-v3', 
     name: 'Recraft V3', 
     provider: 'Recraft', 
     type: 'image', 
-    description: 'Вектор и дизайн', 
+    description: 'Идеален для векторов и текста', 
     cost: 30 
   },
-
-  // OpenAI
   { 
-    id: 'openai/dall-e-3', 
-    name: 'DALL-E 3', 
-    provider: 'OpenAI', 
+    id: 'black-forest-labs/flux.2-pro', 
+    name: 'Flux 2 Pro', 
+    provider: 'Flux', 
     type: 'image', 
-    description: 'Точное следование промпту', 
-    cost: 60 
+    description: 'Новейшая модель Flux (SOTA)', 
+    cost: 60,
+    isNew: true
   },
-
   // Others
   { 
     id: 'ideogram/ideogram-v2', 

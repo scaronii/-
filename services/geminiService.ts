@@ -124,88 +124,70 @@ export const generateImage = async (
 ): Promise<{ url: string | null, mimeType?: string }> => {
   
   try {
-    let finalPrompt = prompt;
-
-    // Vision Remix: Use GPT-4o to describe attachment if present
-    if (attachment) {
-        console.log("Describing attachment for remix...");
-        const descriptionResponse = await openai.chat.completions.create({
-            model: "openai/gpt-4o",
-            messages: [
-                { 
-                    role: "system", 
-                    content: "You are a visual prompt engineer. Describe the attached image in extreme detail. Return ONLY the description." 
-                },
-                {
-                    role: "user",
-                    content: [
-                        { type: "text", text: "Describe this image." },
-                        { type: "image_url", image_url: { url: `data:${attachment.mimeType};base64,${attachment.data}` } }
-                    ]
-                }
-            ],
-        });
-        const description = descriptionResponse.choices[0]?.message?.content || "";
-        finalPrompt = `${prompt}. Base image description: ${description}`;
-    }
-
-    // Prepare Chat Completion request for Image Generation
-    // OpenRouter models like Flux/Recraft work best via chat completions where they return the URL in text
-    const messages: any[] = [
-      { 
-        role: "user", 
-        content: `Generate an image based on this description: ${finalPrompt}. Aspect ratio: ${aspectRatio}.` 
-      }
-    ];
-
-    console.log(`Generating image with model: ${modelId} via Chat API...`);
-
-    const response = await openai.chat.completions.create({
-        model: modelId, 
-        messages: messages,
-        // @ts-ignore - 'modalities' is a custom param for some OpenRouter models, ignored by standard SDK typing
-        modalities: ["image", "text"], 
+    // Используем прямой fetch к нашему прокси, чтобы точно передать нестандартные параметры OpenRouter
+    // и избежать проблем с SDK
+    const response = await fetch('/openai-api/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Authorization заголовок подставит наш api/proxy.ts
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [
+          {
+            role: 'user',
+            content: prompt || "Generate an image",
+          },
+        ],
+        // ВАЖНО: OpenRouter требует этот массив для генерации картинок
+        modalities: ['image', 'text'],
+        // Опционально: конфиг для некоторых моделей
+        image_config: {
+            aspect_ratio: aspectRatio 
+        }
+      }),
     });
 
-    const messageContent = response.choices[0]?.message?.content;
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Image Gen API Error:", errorText);
+        throw new Error(`Ошибка API: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log("OpenRouter Image Response:", data);
+
+    // 1. Пробуем найти картинку в специальном поле messages (Стандарт OpenRouter для Recraft/Flux)
+    // Структура: choices[0].message.images[0].image_url.url
+    const choice = data.choices?.[0];
+    const openRouterImage = choice?.message?.images?.[0];
     
-    // Check for Markdown image syntax ![alt](url)
-    if (messageContent) {
-        const markdownMatch = messageContent.match(/\!\[.*?\]\((.*?)\)/);
-        if (markdownMatch && markdownMatch[1]) {
-            return { url: markdownMatch[1], mimeType: "image/png" };
-        }
-
-        // Check for direct URL in text
-        const urlMatch = messageContent.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
-        if (urlMatch && urlMatch[1]) {
-             return { url: urlMatch[1], mimeType: "image/png" };
-        }
-        
-        // Check for S3/Blob URLs that might not have extension
-        const looseUrlMatch = messageContent.match(/(https?:\/\/[^\s]+)/);
-        if (looseUrlMatch && looseUrlMatch[1]) {
-            if (looseUrlMatch[1].includes('openrouter') || looseUrlMatch[1].includes('generated')) {
-                 return { url: looseUrlMatch[1], mimeType: "image/png" };
-            }
-        }
+    if (openRouterImage?.image_url?.url) {
+        return {
+            url: openRouterImage.image_url.url,
+            mimeType: "image/png"
+        };
     }
 
-    // Check specific fields if available (some models use tool calls or custom response fields)
-    const rawResponse = response as any;
-    if (rawResponse.choices[0]?.message?.images && rawResponse.choices[0].message.images.length > 0) {
-         return {
-             url: rawResponse.choices[0].message.images[0].url,
-             mimeType: "image/png"
-         };
+    // 2. Фоллбек: Иногда ссылка приходит в тексте (Markdown)
+    const content = choice?.message?.content || "";
+    const markdownMatch = content.match(/\!\[.*?\]\((.*?)\)/);
+    if (markdownMatch && markdownMatch[1]) {
+        return { url: markdownMatch[1], mimeType: "image/png" };
+    }
+    
+    // 3. Фоллбек: Прямая ссылка
+    const urlMatch = content.match(/(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp))/i);
+    if (urlMatch && urlMatch[1]) {
+         return { url: urlMatch[1], mimeType: "image/png" };
     }
 
-    console.error("No image found in response:", messageContent);
-    throw new Error("API вернуло ответ, но без ссылки на изображение.");
+    throw new Error("Картинка не найдена в ответе API");
 
   } catch (error: any) {
-    console.error("Image Gen Error:", error);
-    throw new Error(error.message || "Ошибка генерации. Проверьте баланс OpenRouter.");
+    console.error("Generate Image Error:", error);
+    throw new Error(error.message || "Ошибка генерации изображения");
   }
 };
 
