@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X, AlertCircle, Send } from 'lucide-react';
+import { RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X, AlertCircle, Send, Download } from 'lucide-react';
 import { IMAGE_MODELS } from '../constants';
 import { generateImage } from '../services/geminiService';
 import { clsx } from 'clsx';
@@ -65,29 +65,6 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
 
   const removeAttachment = () => {
     setAttachment(null);
-  };
-
-  const handleDownload = async (url: string) => {
-    try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `uniai-image-${Date.now()}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-    } catch (e) {
-        // Fallback for some browsers or cross-origin issues
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `uniai-image-${Date.now()}.png`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
   };
 
   const handleSendToChat = async () => {
@@ -378,16 +355,10 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                               <Send className="w-5 h-5" />
                           )}
                           <span className="text-sm font-bold hidden sm:inline">
-                              {isSending ? 'Отправка...' : 'В чат'}
+                              {isSending ? 'Отправка...' : 'В бот'}
                           </span>
                         </button>
                     )}
-                    <button 
-                      onClick={() => handleDownload(generatedImage)}
-                      className="bg-white text-charcoal p-3 md:p-4 rounded-full shadow-lg hover:scale-110 transition-transform"
-                    >
-                      <Download className="w-5 h-5 md:w-6 md:h-6" />
-                    </button>
                   </div>
                 </>
               ) : error ? (

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { userService } from '../services/userService';
-import { Download, Play, Image as ImageIcon, Film, X, Trash2 } from 'lucide-react';
+import { Download, Play, Image as ImageIcon, Film, X, Send, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { TelegramUser } from '../types';
 
@@ -14,6 +14,7 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -50,6 +51,44 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const handleSendToChat = async () => {
+    if (!selectedItem || !user) return;
+    setIsSending(true);
+    
+    try {
+      const res = await fetch('/api/send-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          imageUrl: selectedItem.url,
+          caption: `Prompt: ${selectedItem.prompt}\n(из галереи UniAI)`
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+         if ((window as any).Telegram?.WebApp) {
+             (window as any).Telegram.WebApp.showPopup({
+                 title: 'Готово!',
+                 message: 'Изображение отправлено в чат.',
+                 buttons: [{type: 'ok'}]
+             });
+         } else {
+             alert('Картинка отправлена!');
+         }
+      } else {
+         alert('Ошибка отправки: ' + (data.error || 'Unknown'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось отправить. Попробуйте еще раз.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -130,12 +169,23 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
                )}
             </div>
             <div className="p-4 bg-surface border-t border-gray-100 flex justify-end gap-3">
-               <button 
-                 onClick={() => handleDownload(selectedItem.url, `uniai-${activeTab}-${Date.now()}.${activeTab === 'images' ? 'png' : 'mp4'}`)}
-                 className="flex items-center gap-2 px-6 py-3 bg-charcoal text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg shadow-charcoal/20 active:scale-95"
-               >
-                 <Download size={18} /> Скачать
-               </button>
+               {activeTab === 'images' && user ? (
+                   <button 
+                     onClick={handleSendToChat}
+                     disabled={isSending}
+                     className="flex items-center gap-2 px-6 py-3 bg-charcoal text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg shadow-charcoal/20 active:scale-95 disabled:opacity-70"
+                   >
+                     {isSending ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />} 
+                     {isSending ? 'Отправка...' : 'Отправить в бот'}
+                   </button>
+               ) : (
+                   <button 
+                     onClick={() => handleDownload(selectedItem.url, `uniai-${activeTab}-${Date.now()}.${activeTab === 'images' ? 'png' : 'mp4'}`)}
+                     className="flex items-center gap-2 px-6 py-3 bg-charcoal text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg shadow-charcoal/20 active:scale-95"
+                   >
+                     <Download size={18} /> Скачать
+                   </button>
+               )}
             </div>
           </div>
         </div>
