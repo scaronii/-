@@ -123,17 +123,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, balance 
          </div>
 
         {/* Promo Banner */}
-        <div className="relative bg-gradient-to-r from-violet-600 to-indigo-600 rounded-[2.5rem] p-6 md:p-10 shadow-xl overflow-hidden text-white group cursor-pointer" onClick={() => onNavigate('chat')}>
+        <div className="relative bg-gradient-to-r from-red-600 to-orange-600 rounded-[2.5rem] p-6 md:p-10 shadow-xl overflow-hidden text-white group cursor-pointer" onClick={() => onNavigate('video')}>
            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-white/20 transition-colors"></div>
            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="space-y-3">
                  <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                     <Sparkles size={12} /> Новинка
                  </div>
-                 <h2 className="text-2xl md:text-4xl font-bold">GPT-5 уже доступен</h2>
-                 <p className="text-indigo-100 max-w-md text-sm md:text-base">Попробуйте самую мощную модель от OpenAI. Улучшенное понимание контекста и невероятная скорость.</p>
+                 <h2 className="text-2xl md:text-4xl font-bold">Sora 2 уже доступна</h2>
+                 <p className="text-orange-50 max-w-md text-sm md:text-base">Попробуйте нашумевшую модель для генерации видео кинематографического качества.</p>
               </div>
-              <button className="bg-white text-indigo-600 px-6 py-3 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform hover:bg-indigo-50">
+              <button className="bg-white text-red-600 px-6 py-3 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform hover:bg-red-50">
                  Попробовать
               </button>
            </div>
