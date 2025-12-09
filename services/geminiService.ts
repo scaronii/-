@@ -165,17 +165,14 @@ export const generateImage = async (
         payload.image_config = { aspect_ratio: aspectRatio };
     }
 
-    // Логируем, чтобы вы видели, что уходит на сервер
     console.log("Sending Image Request Payload:", JSON.stringify(payload, null, 2));
 
     const response = await fetch('/openai-api/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // 'Authorization' добавляется в proxy.ts, здесь не нужен
       },
-      // JSON.stringify безопасно кодирует Unicode (русский текст) в \uXXXX
-      // Это предотвращает ошибку "string did not match the expected pattern"
+      // JSON.stringify безопасно кодирует Unicode (русский текст)
       body: JSON.stringify(payload),
     });
 
@@ -200,7 +197,7 @@ export const generateImage = async (
         if (url) return { url, mimeType: "image/png" };
     }
 
-    // 2. Поиск в тексте ответа (Markdown ссылка) - часто бывает у Flux/Recraft
+    // 2. Поиск в тексте ответа (Markdown ссылка)
     const textContent = message?.content || "";
     const markdownMatch = textContent.match(/\!\[.*?\]\((.*?)\)/);
     if (markdownMatch && markdownMatch[1]) {
@@ -222,10 +219,6 @@ export const generateImage = async (
 
   } catch (error: any) {
     console.error("Generate Image Critical Error:", error);
-    // Проверка на ту самую ошибку
-    if (error.name === 'InvalidCharacterError' || error.message.includes('match the expected pattern')) {
-        throw new Error("Критическая ошибка кодировки. Проверьте прокси или браузер.");
-    }
     throw new Error(error.message || "Не удалось создать изображение");
   }
 };

@@ -21,60 +21,49 @@ export default async function handler(request: Request) {
   }
 
   const url = new URL(request.url);
-  
-  // Remove the local proxy prefix to get the target path
   const targetPath = url.pathname.replace(/^\/openai-api\//, '');
-  
-  // OpenRouter supports image generation via chat completions for many models (Flux, Recraft)
-  // We strictly route to OpenRouter API
   const finalUrl = `https://openrouter.ai/api/${targetPath}${url.search}`;
 
   const headers = new Headers(request.headers);
   headers.delete('host');
-  headers.delete('x-forwarded-for');
-  headers.delete('x-real-ip');
-  headers.delete('content-length'); // Critical: prevent length mismatch
-  
+  headers.delete('content-length');
   headers.set('Authorization', `Bearer ${OPENROUTER_KEY}`);
   headers.set('HTTP-Referer', SITE_URL);
   headers.set('X-Title', SITE_NAME);
   
-  // Ensure we have a content type
   if (!headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
 
   try {
-    // Read body once into buffer to avoid "body used already" error
     const bodyBuffer = await request.arrayBuffer();
 
-    const response = await fetch(finalUrl, {
+    const backendResponse = await fetch(finalUrl, {
       method: request.method,
       headers: headers,
       body: bodyBuffer,
-      // @ts-ignore
-      duplex: 'half', 
     });
 
-    // Create a new response to allow adding CORS headers
-    const newHeaders = new Headers(response.headers);
-    newHeaders.set('Access-Control-Allow-Origin', '*');
-    
-    // CRITICAL FIX: Remove content-encoding and transfer-encoding to prevent browser decoding issues
-    // The Edge Runtime or fetch API usually handles decompression, but passing the header
-    // causes the browser to attempt decompression again on already decompressed data.
-    newHeaders.delete('content-encoding');
-    newHeaders.delete('transfer-encoding');
+    // Fully buffer the response to avoid streaming encoding issues
+    const responseData = await backendResponse.arrayBuffer();
 
-    return new Response(response.body, {
-      status: response.status,
+    // Construct clean headers to avoid browser decoding conflicts (gzip, etc)
+    const newHeaders = new Headers();
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+    newHeaders.set('Content-Type', backendResponse.headers.get('content-type') || 'application/json');
+
+    return new Response(responseData, {
+      status: backendResponse.status,
       headers: newHeaders,
     });
   } catch (e) {
     console.error("Proxy Error:", e);
     return new Response(JSON.stringify({ error: 'Connection to OpenRouter Failed' }), { 
       status: 502,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Access-Control-Allow-Origin': '*' 
+      }
     });
   }
 }
