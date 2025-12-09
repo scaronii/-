@@ -1,8 +1,13 @@
+
 {
   "rewrites": [
     {
       "source": "/openai-api/(.*)",
       "destination": "/api/proxy"
+    },
+    {
+      "source": "/minimax-api", 
+      "destination": "/api/minimax-proxy"
     },
     {
       "source": "/(.*)",

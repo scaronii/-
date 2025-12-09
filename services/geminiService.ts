@@ -1,6 +1,6 @@
 
 import OpenAI from "openai";
-import { TEXT_MODELS } from '../constants';
+import { TEXT_MODELS, VIDEO_MODELS } from '../constants';
 
 // Initialize OpenAI client pointing to our OpenRouter Proxy
 const openai = new OpenAI({
@@ -167,24 +167,92 @@ export const generateImage = async (model: string, prompt: string, aspectRatio: 
     }
 };
 
-export const generateVideo = async (model: string, prompt: string, aspectRatio: string, duration: number, attachment?: { mimeType: string; data: string }) => {
-    console.log("Generating video...", { model, prompt, aspectRatio, duration });
-    // Mock async task
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return { id: "vid-" + Math.random().toString(36).substring(2, 9) };
-};
+// --- VIDEO GENERATION (MINIMAX IMPLEMENTATION) ---
 
-export const pollVideoStatus = async (id: string) => {
-    // Mock polling
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const isComplete = Math.random() > 0.4;
-    return {
-        status: isComplete ? 'completed' : 'processing',
-        progress: isComplete ? 100 : Math.floor(Math.random() * 80)
+// 1. Запуск задачи
+export const generateVideo = async (
+    fakeModelId: string, 
+    prompt: string, 
+    aspectRatio: string, 
+    duration: number, 
+    attachment?: { mimeType: string; data: string }
+) => {
+    // Находим реальную модель через маппинг или берем дефолт (MiniMax Hailuo)
+    const modelDef = VIDEO_MODELS.find(m => m.id === fakeModelId);
+    const realModel = modelDef?.geminiMap || 'video-01'; // 'video-01' is common identifier for Hailuo
+
+    // Формируем payload согласно документации Minimax
+    const payload: any = {
+        model: realModel,
+        prompt: prompt,
+        // Hailuo обычно не принимает duration как число, но для совместимости оставим или адаптируем
+        // Для API Minimax параметры могут отличаться, используем стандартные
     };
+
+    // Если есть картинка (Image-to-Video)
+    if (attachment) {
+        payload.first_frame_image = `data:${attachment.mimeType};base64,${attachment.data}`;
+    }
+
+    try {
+        const response = await fetch('/minimax-api?path=/v1/video_generation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        
+        if (data.base_resp && data.base_resp.status_code !== 0) {
+            throw new Error(`Minimax API Error: ${data.base_resp.status_msg}`);
+        }
+
+        if (!data.task_id) {
+            throw new Error("No task_id returned");
+        }
+
+        return { id: data.task_id };
+    } catch (e: any) {
+        console.error("Video Generation Start Error:", e);
+        throw new Error(e.message || "Не удалось запустить генерацию видео");
+    }
 };
 
-export const getVideoContent = async (id: string) => {
-    // Mock video URL
-    return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4";
+// 2. Проверка статуса (Polling)
+export const pollVideoStatus = async (taskId: string) => {
+    try {
+        const response = await fetch(`/minimax-api?path=/v1/query/video_generation&task_id=${taskId}`);
+        const data = await response.json();
+
+        // Статусы: "Queued", "Processing", "Success", "Fail"
+        if (data.status === 'Success') {
+            return { status: 'completed', fileId: data.file_id, progress: 100 };
+        } else if (data.status === 'Fail') {
+            return { status: 'failed', progress: 0 };
+        } else {
+            // Имитация прогресса, т.к. API может не отдавать проценты
+            return { status: 'processing', progress: 50 }; 
+        }
+    } catch (e) {
+        console.error("Polling Error:", e);
+        return { status: 'processing', progress: 0 }; // Не падаем, пробуем еще раз
+    }
+};
+
+// 3. Получение ссылки на скачивание
+export const getVideoContent = async (fileId: string) => {
+    if (!fileId) throw new Error("No file_id provided");
+    
+    try {
+        const response = await fetch(`/minimax-api?path=/v1/files/retrieve&file_id=${fileId}`);
+        const data = await response.json();
+        
+        if (data.file && data.file.download_url) {
+            return data.file.download_url;
+        }
+        throw new Error("Download URL not found");
+    } catch (e: any) {
+        console.error("Retrieve Error:", e);
+        throw new Error("Не удалось получить ссылку на видео");
+    }
 };

@@ -167,8 +167,35 @@ export const IMAGE_MODELS: AIModel[] = [
 ];
 
 export const VIDEO_MODELS: AIModel[] = [
-  { id: 'sora-2', name: 'Sora 2', provider: 'OpenAI', type: 'video', description: 'Быстрая генерация видео', cost: 35 }, 
-  { id: 'sora-2-pro', name: 'Sora 2 Pro', provider: 'OpenAI', type: 'video', isNew: true, description: 'Кинематографическое качество', cost: 100 },
+  { 
+    id: 'sora-2', 
+    name: 'OpenAI Sora 2', 
+    provider: 'OpenAI', 
+    type: 'video', 
+    description: 'Кинематографическое качество', 
+    cost: 35, // Per second
+    geminiMap: 'video-01' // Mapped internally
+  }, 
+  { 
+    id: 'google-veo', 
+    name: 'Google Veo', 
+    provider: 'Google', 
+    type: 'video', 
+    isNew: true, 
+    description: 'Быстрая генерация движения', 
+    cost: 25,
+    geminiMap: 'video-01'
+  },
+  { 
+    id: 'hailuo-02', 
+    name: 'Hailuo MiniMax 02', 
+    provider: 'ByteDance', 
+    type: 'video', 
+    isNew: true, 
+    description: 'Ultra HD 1080p, 60fps', 
+    cost: 30,
+    geminiMap: 'video-01' 
+  },
 ];
 
 export const CREDIT_PACKS: CreditPack[] = [

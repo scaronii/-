@@ -18,7 +18,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState(VIDEO_MODELS[0].id);
   const [aspectRatio, setAspectRatio] = useState('1280x720'); // Landscape
-  const [duration, setDuration] = useState<4 | 8 | 12>(8); // 8s default
+  const [duration, setDuration] = useState<4 | 6 | 8 | 10>(6); // Default 6s
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>('');
@@ -99,24 +99,41 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
 
       // 2. Start generation
       const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
+      
+      // Returns { id: "task_id" }
       const task = await generateVideo(selectedModel, prompt || "Video based on image", aspectRatio, duration, currentAttachment);
       
       // Clear attachment
       setAttachment(null);
 
       // 3. Poll for status
+      let attempts = 0;
       const pollInterval = setInterval(async () => {
+         attempts++;
+         // Timeout after ~5 minutes (300 seconds)
+         if (attempts > 100) {
+             clearInterval(pollInterval);
+             setError("Превышено время ожидания генерации.");
+             setIsGenerating(false);
+             return;
+         }
+
          try {
             const result = await pollVideoStatus(task.id);
-            setStatus(result.status);
             
-            if (result.progress) setProgress(result.progress);
+            if (result.status === 'processing') {
+                setStatus('processing');
+                // Fake smooth progress while processing
+                setProgress(prev => prev < 90 ? prev + (5 / attempts) : 90);
+            }
             
-            if (result.status === 'completed') {
+            if (result.status === 'completed' && result.fileId) {
                clearInterval(pollInterval);
+               setStatus('completed');
+               setProgress(100);
                
-               // 4. Get Content
-               const videoUrl = await getVideoContent(task.id);
+               // 4. Get Content using fileId
+               const videoUrl = await getVideoContent(result.fileId);
                setGeneratedVideo(videoUrl);
                setIsGenerating(false);
                
@@ -127,14 +144,15 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                }
             } else if (result.status === 'failed') {
                clearInterval(pollInterval);
-               throw new Error("Генерация не удалась");
+               throw new Error("Генерация отменена сервером");
             }
          } catch (e) {
+            console.error(e);
             clearInterval(pollInterval);
-            setError("Ошибка при создании видео");
+            setError("Ошибка при создании видео. Попробуйте другой промпт.");
             setIsGenerating(false);
          }
-      }, 2000);
+      }, 3000); // Poll every 3 seconds
 
     } catch (err: any) {
       setError(err.message || 'Ошибка запуска генерации');
@@ -219,11 +237,11 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
 
               <div>
                 <label className="block text-sm font-bold text-charcoal mb-3 uppercase tracking-wider">Длительность</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[4, 8, 12].map((s) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {[4, 6, 8, 10].map((s) => (
                     <button
                       key={s}
-                      onClick={() => setDuration(s as 4|8|12)}
+                      onClick={() => setDuration(s as 4|6|8|10)}
                       className={clsx(
                         "py-3 rounded-2xl text-sm font-bold border transition-all flex items-center justify-center gap-2",
                         duration === s
@@ -317,6 +335,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
                      <div className="w-full bg-gray-100 rounded-full h-2">
                         <div className="bg-red-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
                      </div>
+                     <p className="text-xs text-gray-500">Это может занять несколько минут. Не закрывайте вкладку.</p>
                   </div>
                 </div>
               ) : generatedVideo ? (
