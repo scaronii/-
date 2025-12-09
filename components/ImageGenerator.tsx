@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X, AlertCircle } from 'lucide-react';
+import { Download, RefreshCw, Wand2, Image as ImageIconSmall, Clock, Sparkles, Paperclip, X, AlertCircle, Send } from 'lucide-react';
 import { IMAGE_MODELS } from '../constants';
 import { generateImage } from '../services/geminiService';
 import { clsx } from 'clsx';
@@ -33,6 +33,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{url: string, prompt: string}[]>([]);
   const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
+  const [isSending, setIsSending] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +87,45 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+  };
+
+  const handleSendToChat = async () => {
+    if (!generatedImage || !tgUser) return;
+    
+    setIsSending(true);
+
+    try {
+      const res = await fetch('/api/send-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: tgUser.id,
+          imageUrl: generatedImage,
+          caption: `Prompt: ${prompt}\nModel: ${IMAGE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+         if ((window as any).Telegram?.WebApp) {
+             (window as any).Telegram.WebApp.showPopup({
+                 title: 'Готово!',
+                 message: 'Изображение отправлено вам в чат.',
+                 buttons: [{type: 'ok'}]
+             });
+         } else {
+             alert('Картинка отправлена вам в чат!');
+         }
+      } else {
+         alert('Ошибка отправки: ' + (data.error || 'Unknown'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось отправить картинку. Попробуйте еще раз.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -326,6 +366,22 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                 <>
                   <img src={generatedImage} alt="Generated" className="w-full h-full object-contain rounded-[2rem]" />
                   <div className="absolute bottom-6 right-6 flex gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+                    {tgUser && (
+                        <button 
+                          onClick={handleSendToChat}
+                          disabled={isSending}
+                          className="bg-blue-600 text-white px-5 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
+                        >
+                          {isSending ? (
+                              <RefreshCw className="animate-spin w-5 h-5" />
+                          ) : (
+                              <Send className="w-5 h-5" />
+                          )}
+                          <span className="text-sm font-bold hidden sm:inline">
+                              {isSending ? 'Отправка...' : 'В чат'}
+                          </span>
+                        </button>
+                    )}
                     <button 
                       onClick={() => handleDownload(generatedImage)}
                       className="bg-white text-charcoal p-3 md:p-4 rounded-full shadow-lg hover:scale-110 transition-transform"
