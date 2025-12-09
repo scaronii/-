@@ -103,6 +103,26 @@ export const TEXT_MODELS: AIModel[] = [
 ];
 
 export const IMAGE_MODELS: AIModel[] = [
+  // Google Nano Banana Series (NEW)
+  { 
+    id: 'google/gemini-2.5-flash-image', 
+    name: 'Nano Banana', 
+    provider: 'Google', 
+    type: 'image', 
+    description: 'Gemini 2.5 Flash Image', 
+    isNew: true,
+    cost: 5 
+  },
+  { 
+    id: 'google/gemini-3-pro-image-preview', 
+    name: 'Nano Banana Pro', 
+    provider: 'Google', 
+    type: 'image', 
+    description: 'Gemini 3 Pro Image', 
+    isNew: true,
+    cost: 15 
+  },
+
   // Flux Series (Top Tier on OpenRouter)
   { 
     id: 'black-forest-labs/flux-1.1-pro', 
