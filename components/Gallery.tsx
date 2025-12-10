@@ -62,14 +62,7 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
     
     let apiEndpoint = '/api/send-image';
     if (activeTab === 'videos') apiEndpoint = '/api/send-video';
-    // For music, assuming same endpoint logic or specialized one. 
-    // Since we don't have api/send-music, we'll assume the generated-music background process handles delivery.
-    // But if we want to resend:
-    // We need a /api/send-audio endpoint. For now, let's reuse video endpoint logic or disable button for music if not ready.
-    // Actually, let's just create a generic handler in thoughts, but for now reuse video endpoint if compatible (unlikely) 
-    // or just show alert that music resend is not implemented yet or implement it.
-    // Let's implement basic audio resend using send-video logic but pointing to sendAudio (would need new endpoint).
-    // For now, disabling send button for music to avoid errors.
+    if (activeTab === 'music') apiEndpoint = '/api/send-audio';
 
     const body: any = {
           userId: user.id,
@@ -80,10 +73,8 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
         body.imageUrl = selectedItem.url;
     } else if (activeTab === 'videos') {
         body.videoUrl = selectedItem.url;
-    } else {
-        alert("Повторная отправка музыки пока не доступна.");
-        setIsSending(false);
-        return;
+    } else if (activeTab === 'music') {
+        body.audioUrl = selectedItem.url;
     }
     
     try {
@@ -235,7 +226,7 @@ export const Gallery: React.FC<GalleryProps> = ({ user }) => {
                )}
             </div>
             <div className="p-4 bg-surface border-t border-gray-100 flex justify-end gap-3">
-               {user && activeTab !== 'music' ? (
+               {user ? (
                    <button 
                      onClick={handleSendToChat}
                      disabled={isSending}

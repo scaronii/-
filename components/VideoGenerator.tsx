@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Download, RefreshCw, Video, Play, Clock, Sparkles, Film, Paperclip, X, Send } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Download, RefreshCw, Video, Film, Paperclip, X, CheckCircle2, Sparkles } from 'lucide-react';
 import { VIDEO_MODELS } from '../constants';
-import { generateVideo, pollVideoStatus, getVideoContent } from '../services/geminiService';
 import { clsx } from 'clsx';
 import { TelegramUser } from '../types';
 import { userService } from '../services/userService';
@@ -19,13 +18,11 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
   const [selectedModel, setSelectedModel] = useState(VIDEO_MODELS[0].id);
   const [aspectRatio, setAspectRatio] = useState('1280x720'); // Landscape
   const [duration, setDuration] = useState<4 | 6 | 8 | 10>(6); // Default 6s
+  
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<string>('');
-  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
-  const [isSending, setIsSending] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,67 +51,6 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
     setAttachment(null);
   };
 
-  const handleDownload = async (url: string) => {
-     try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `uniai-video-${Date.now()}.mp4`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-    } catch (e) {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `uniai-video-${Date.now()}.mp4`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-  };
-
-  const handleSendToChat = async () => {
-    if (!generatedVideo || !tgUser) return;
-    
-    setIsSending(true);
-
-    try {
-      const res = await fetch('/api/send-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: tgUser.id,
-          videoUrl: generatedVideo,
-          caption: `Prompt: ${prompt}\nModel: ${VIDEO_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`
-        })
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-         if ((window as any).Telegram?.WebApp) {
-             (window as any).Telegram.WebApp.showPopup({
-                 title: 'Готово!',
-                 message: 'Видео отправлено вам в чат.',
-                 buttons: [{type: 'ok'}]
-             });
-         } else {
-             alert('Видео отправлено вам в чат!');
-         }
-      } else {
-         alert('Ошибка отправки: ' + (data.error || 'Unknown'));
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Не удалось отправить видео. Попробуйте еще раз.');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
   const handleGenerate = async () => {
     if (!prompt && !attachment) return;
     if (balance < totalCost) {
@@ -122,82 +58,59 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
        return;
     }
 
+    if (!tgUser) {
+        alert("Для фоновой генерации нужно открыть приложение в Telegram.");
+        return;
+    }
+
     setIsGenerating(true);
     setError(null);
-    setGeneratedVideo(null);
-    setProgress(0);
-    setStatus('queued');
+    setSuccessMessage(null);
 
     try {
-      // 1. Deduct tokens first
-      if (tgUser) {
-         const newBal = await userService.deductTokens(tgUser.id, totalCost);
-         if (newBal !== undefined) onUpdateBalance(newBal);
-      } else {
-         onUpdateBalance(balance - totalCost);
+      // 1. Списание токенов
+      const newBal = await userService.deductTokens(tgUser.id, totalCost);
+      if (newBal !== undefined) onUpdateBalance(newBal);
+
+      // 2. Отправка задачи на сервер
+      const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
+
+      const response = await fetch('/api/generate-video-bg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              prompt: prompt || "Video based on image",
+              model: selectedModel,
+              userId: tgUser.id,
+              aspectRatio,
+              duration,
+              attachment: currentAttachment
+          })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+          throw new Error(data.error || "Ошибка запуска генерации");
       }
 
-      // 2. Start generation
-      const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
-      
-      // Returns { id: "task_id" }
-      const task = await generateVideo(selectedModel, prompt || "Video based on image", aspectRatio, duration, currentAttachment);
-      
-      // Clear attachment
+      // 3. Успех
+      setSuccessMessage("Видео генерируется! Процесс займет 3-4 минуты. Бот пришлет результат в чат.");
+      setPrompt('');
       setAttachment(null);
-
-      // 3. Poll for status
-      let attempts = 0;
-      const pollInterval = setInterval(async () => {
-         attempts++;
-         // Timeout after ~5 minutes (300 seconds)
-         if (attempts > 100) {
-             clearInterval(pollInterval);
-             setError("Превышено время ожидания генерации.");
-             setIsGenerating(false);
-             return;
-         }
-
-         try {
-            const result = await pollVideoStatus(task.id);
-            
-            if (result.status === 'processing') {
-                setStatus('processing');
-                // Fake smooth progress while processing
-                setProgress(prev => prev < 90 ? prev + (5 / attempts) : 90);
-            }
-            
-            if (result.status === 'completed' && result.fileId) {
-               clearInterval(pollInterval);
-               setStatus('completed');
-               setProgress(100);
-               
-               // 4. Get Content using fileId
-               const videoUrl = await getVideoContent(result.fileId);
-               setGeneratedVideo(videoUrl);
-               setIsGenerating(false);
-               
-               // Save to DB
-               if (tgUser) {
-                  userService.saveGeneratedVideo(tgUser.id, videoUrl, prompt || "Image-to-Video", selectedModel);
-                  if (onVideoGenerated) onVideoGenerated();
-               }
-            } else if (result.status === 'failed') {
-               clearInterval(pollInterval);
-               throw new Error("Генерация отменена сервером");
-            }
-         } catch (e) {
-            console.error(e);
-            clearInterval(pollInterval);
-            setError("Ошибка при создании видео. Попробуйте другой промпт.");
-            setIsGenerating(false);
-         }
-      }, 3000); // Poll every 3 seconds
+      if (onVideoGenerated) onVideoGenerated(); // Обновить счетчики
 
     } catch (err: any) {
       setError(err.message || 'Ошибка запуска генерации');
+      // Возврат средств (упрощенно)
+      onUpdateBalance(balance);
+    } finally {
       setIsGenerating(false);
     }
+  };
+
+  const resetForm = () => {
+      setSuccessMessage(null);
   };
 
   return (
@@ -213,7 +126,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
               </span>
               Генерация Видео
             </h1>
-            <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте клипы с помощью Sora 2. Процесс может занять несколько минут.</p>
+            <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте клипы с помощью Sora 2. Процесс идет в фоне.</p>
           </div>
           <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 text-sm font-medium text-gray-500 w-fit">
              Баланс: <span className="text-charcoal font-bold">{balance.toLocaleString()}</span> ★
@@ -354,64 +267,35 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
 
                 <button
                   onClick={handleGenerate}
-                  disabled={(!prompt && !attachment) || isGenerating}
+                  disabled={(!prompt && !attachment) || isGenerating || !!successMessage}
                   className="w-full sm:w-auto bg-charcoal hover:bg-black text-white px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:scale-105 active:scale-95 text-base"
                 >
                   {isGenerating ? <RefreshCw className="animate-spin" size={20} /> : <Film size={20} />}
-                  Создать видео ({totalCost} ★)
+                  {isGenerating ? 'Запуск...' : `Создать видео (${totalCost} ★)`}
                 </button>
               </div>
             </div>
 
             <div className="bg-surface rounded-[2rem] md:rounded-[3rem] border border-gray-50 shadow-soft min-h-[300px] md:min-h-[500px] flex items-center justify-center relative overflow-hidden group p-4">
-              {isGenerating ? (
-                <div className="text-center space-y-6 w-full max-w-md">
-                  <div className="relative mx-auto w-20 h-20">
-                    <div className="absolute inset-0 rounded-full border-4 border-gray-100"></div>
-                    <div className="absolute inset-0 rounded-full border-4 border-red-500 border-t-transparent animate-spin"></div>
-                  </div>
-                  <div className="space-y-2">
-                     <p className="text-charcoal font-bold text-lg animate-pulse">Генерация видео: {status}</p>
-                     <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className="bg-red-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
-                     </div>
-                     <p className="text-xs text-gray-500">Это может занять несколько минут. Не закрывайте вкладку.</p>
-                  </div>
-                </div>
-              ) : generatedVideo ? (
-                <div className="relative w-full h-full flex flex-col items-center justify-center">
-                  <video 
-                     src={generatedVideo} 
-                     controls 
-                     autoPlay 
-                     loop 
-                     className="max-w-full max-h-[500px] rounded-[2rem] shadow-lg"
-                  />
-                  <div className="absolute bottom-6 right-6 flex gap-3">
-                     {tgUser && (
-                        <button 
-                          onClick={handleSendToChat}
-                          disabled={isSending}
-                          className="bg-blue-600 text-white px-5 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
-                        >
-                          {isSending ? (
-                              <RefreshCw className="animate-spin w-5 h-5" />
-                          ) : (
-                              <Send className="w-5 h-5" />
-                          )}
-                          <span className="text-sm font-bold hidden sm:inline">
-                              {isSending ? 'Отправка...' : 'В бот'}
-                          </span>
-                        </button>
-                     )}
-                     <button 
-                       onClick={() => handleDownload(generatedVideo!)}
-                       className="bg-white text-charcoal p-3 rounded-full shadow-lg hover:scale-110 transition-transform z-10"
-                     >
-                       <Download size={24} />
-                     </button>
-                  </div>
-                </div>
+              {successMessage ? (
+                 <div className="text-center animate-fadeIn px-4 max-w-lg">
+                    <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
+                        <CheckCircle2 size={48} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-charcoal mb-4">Задача принята!</h3>
+                    <p className="text-gray-600 font-medium mb-6 leading-relaxed text-lg">
+                      {successMessage}
+                    </p>
+                    <div className="bg-blue-50 text-blue-800 p-4 rounded-2xl text-sm font-medium mb-8">
+                       💡 Вы можете закрыть приложение или создать еще одно видео, картинку или песню. Уведомление придет в бот.
+                    </div>
+                    <button 
+                       onClick={resetForm}
+                       className="bg-charcoal text-white px-8 py-3 rounded-xl font-bold hover:bg-black transition-colors"
+                    >
+                       Создать еще одно
+                    </button>
+                 </div>
               ) : error ? (
                 <div className="bg-red-50 text-red-500 text-center p-6 md:p-8 rounded-3xl max-w-md mx-4">
                   <p className="font-bold">{error}</p>

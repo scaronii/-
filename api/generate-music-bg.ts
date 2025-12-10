@@ -8,8 +8,11 @@ export const config = {
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API_HOST = "https://api.minimax.io";
+
+// Env vars handling for Edge
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Prefer Service Role Key for backend operations to bypass RLS
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 export default async function handler(request: Request, context: any) {
   if (request.method !== 'POST') {
@@ -33,7 +36,7 @@ export default async function handler(request: Request, context: any) {
         try {
           console.log(`[Background] Starting music gen for user ${userId}`);
           
-          // 1. Generate Audio
+          // 1. Generate Audio via MiniMax
           const payload = {
             model: "music-2.0",
             prompt: prompt,
@@ -72,26 +75,34 @@ export default async function handler(request: Request, context: any) {
             throw new Error("No audio data received from MiniMax");
           }
 
+          // Convert Hex to Uint8Array (Buffer)
           const cleanHex = hexData.replace(/[\s\n\r"']+/g, '');
+          if (cleanHex.length % 2 !== 0) throw new Error("Invalid hex length");
+          
           const byteCharacters = new Uint8Array(cleanHex.length / 2);
           for (let i = 0; i < cleanHex.length; i += 2) {
             byteCharacters[i / 2] = parseInt(cleanHex.substring(i, i + 2), 16);
           }
+          
+          // For Telegram we need a Blob
           const audioBlob = new Blob([byteCharacters], { type: 'audio/mpeg' });
 
-          // 2. Upload to Supabase Storage (for persistent URL)
+          // 2. Upload to Supabase Storage
           let publicUrl = "";
           if (SUPABASE_URL && SUPABASE_KEY) {
              try {
-                const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+                const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+                    auth: { persistSession: false }
+                });
+                
                 const filename = `music_${userId}_${Date.now()}.mp3`;
                 
-                // Upload to 'music' bucket
+                // Upload to 'music' bucket using Uint8Array directly for better Edge compatibility
                 const { error: uploadError } = await supabase.storage
                     .from('music')
-                    .upload(filename, audioBlob, {
+                    .upload(filename, byteCharacters, {
                         contentType: 'audio/mpeg',
-                        upsert: false
+                        upsert: true
                     });
 
                 if (uploadError) {
@@ -104,16 +115,22 @@ export default async function handler(request: Request, context: any) {
                     publicUrl = data.publicUrl;
 
                     // Save record to DB
-                    await supabase.from('generated_music').insert([{
+                    // Make sure 'generated_music' table exists and has user_id (bigint), url (text), prompt (text), model (text)
+                    const { error: dbError } = await supabase.from('generated_music').insert([{
                         user_id: userId,
                         url: publicUrl,
                         prompt: prompt,
                         model: model || 'music-2.0'
                     }]);
+                    
+                    if (dbError) console.error("Supabase DB Insert Error:", dbError);
+                    else console.log("Saved music to DB:", publicUrl);
                 }
              } catch (dbError) {
-                 console.error("Supabase DB/Storage Error:", dbError);
+                 console.error("Supabase Client Error:", dbError);
              }
+          } else {
+              console.warn("Missing Supabase Credentials in Edge Function");
           }
 
           // 3. Send to Telegram
