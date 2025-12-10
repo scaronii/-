@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Music, Disc, Download, RefreshCw, Wand2, Mic2, Sparkles, Globe } from 'lucide-react';
-import { generateMusic, streamChatResponse } from '../services/geminiService';
+import { Music, Disc, Download, RefreshCw, Wand2, Mic2, Sparkles, Globe, CheckCircle2 } from 'lucide-react';
+import { streamChatResponse } from '../services/geminiService';
 import { userService } from '../services/userService';
 import { TelegramUser } from '../types';
 import { clsx } from 'clsx';
@@ -30,7 +30,7 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
   const [lyricsLanguage, setLyricsLanguage] = useState('Russian');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
-  const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const modelInfo = MUSIC_MODELS.find(m => m.id === 'music-2.0');
@@ -75,28 +75,47 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
        return;
     }
 
+    if (!tgUser) {
+        alert("Для фоновой генерации нужно открыть приложение в Telegram.");
+        return;
+    }
+
     setIsGenerating(true);
     setError(null);
-    setGeneratedAudio(null);
+    setSuccessMessage(null);
 
     try {
-      if (tgUser) {
-         // Only deduct if cost > 0
-         if (COST > 0) {
-             const newBal = await userService.deductTokens(tgUser.id, COST);
-             if (newBal !== undefined) onUpdateBalance(newBal);
-         }
-      } else {
-         if (COST > 0) {
-            onUpdateBalance(balance - COST);
-         }
+      // 1. Списание баланса (если платно)
+      if (COST > 0) {
+         const newBal = await userService.deductTokens(tgUser.id, COST);
+         if (newBal !== undefined) onUpdateBalance(newBal);
       }
 
-      const result = await generateMusic(prompt, lyrics);
-      setGeneratedAudio(result.url);
+      // 2. Отправка запроса на сервер
+      const response = await fetch('/api/generate-music-bg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              prompt,
+              lyrics,
+              userId: tgUser.id,
+              model: 'music-2.0'
+          })
+      });
 
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+          throw new Error(data.error || "Ошибка запуска генерации");
+      }
+
+      // 3. Успешный запуск
+      setSuccessMessage("Генерация началась! Вы можете закрыть это окно. Бот пришлет вам песню через 1-2 минуты.");
+      
     } catch (err: any) {
       setError(err.message || 'Ошибка генерации музыки');
+      // Возврат средств при ошибке запуска (упрощенно)
+      if (COST > 0) onUpdateBalance(balance); 
     } finally {
       setIsGenerating(false);
     }
@@ -186,59 +205,42 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
 
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating || !prompt || !lyrics || isGeneratingLyrics}
+                disabled={isGenerating || !prompt || !lyrics || isGeneratingLyrics || !!successMessage}
                 className="w-full bg-charcoal text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-black transition-all shadow-lg shadow-charcoal/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 {isGenerating ? <RefreshCw className="animate-spin" /> : <Wand2 />}
-                {isGenerating ? 'Пишем музыку...' : (COST > 0 ? `Сгенерировать трек (${COST} ★)` : 'Сгенерировать трек (Бесплатно)')}
+                {isGenerating ? 'Запуск генерации...' : (COST > 0 ? `Создать трек (${COST} ★)` : 'Создать трек (Бесплатно)')}
               </button>
             </div>
           </div>
 
-          {/* Result */}
+          {/* Result Info */}
           <div className="lg:col-span-5">
              <div className="bg-white p-8 rounded-[2.5rem] shadow-soft border border-gray-50 h-full flex flex-col items-center justify-center relative overflow-hidden min-h-[400px]">
-                {generatedAudio ? (
-                  <div className="w-full max-w-sm text-center animate-fadeIn">
-                    <div className="relative mx-auto mb-8 w-48 h-48 group">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-pink-500 to-purple-600 rounded-full animate-[spin_4s_linear_infinite] opacity-20 blur-xl group-hover:opacity-40 transition-opacity"></div>
-                        <div className="w-full h-full bg-charcoal rounded-full flex items-center justify-center relative shadow-2xl border-4 border-white">
-                           <div className="absolute inset-2 border border-gray-700 rounded-full"></div>
-                           <div className="absolute inset-8 border border-gray-800 rounded-full"></div>
-                           <Disc className="text-gray-600 w-full h-full p-12 opacity-50 animate-[spin_10s_linear_infinite]" />
-                           <div className="absolute w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-inner">
-                              <Music className="text-white w-6 h-6" />
-                           </div>
-                        </div>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-charcoal mb-1 line-clamp-1">{prompt}</h3>
-                    <p className="text-xs text-gray-400 mb-6 uppercase tracking-wider">MiniMax Music 2.0</p>
-
-                    <div className="bg-gray-50 p-2 rounded-xl mb-4">
-                        <audio controls src={generatedAudio} className="w-full" />
-                    </div>
-
-                    <a 
-                      href={generatedAudio} 
-                      download={`uniai-music-${Date.now()}.mp3`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-center gap-2 w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-charcoal rounded-xl font-bold transition-colors"
-                    >
-                      <Download size={18} /> Скачать MP3
-                    </a>
-                  </div>
+                
+                {successMessage ? (
+                   <div className="text-center animate-fadeIn px-4">
+                      <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
+                          <CheckCircle2 size={48} />
+                      </div>
+                      <h3 className="text-2xl font-bold text-charcoal mb-4">В процессе!</h3>
+                      <p className="text-gray-600 font-medium mb-6 leading-relaxed">
+                        {successMessage}
+                      </p>
+                      <p className="text-xs text-gray-400 uppercase tracking-wider">
+                         Можно закрыть приложение
+                      </p>
+                   </div>
                 ) : (
-                  <div className="text-center text-gray-300">
-                    <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Mic2 size={40} className="opacity-20" />
+                   <div className="text-center text-gray-300">
+                    <div className="relative mx-auto mb-6 w-32 h-32 opacity-20">
+                         <Disc className="w-full h-full text-charcoal animate-[spin_20s_linear_infinite]" />
                     </div>
-                    <p className="text-lg font-medium">Здесь появится ваш хит</p>
-                    <p className="text-sm mt-2 max-w-[200px] mx-auto opacity-60">Заполните параметры слева и нажмите кнопку создания</p>
+                    <p className="text-lg font-medium">Здесь появится статус</p>
+                    <p className="text-sm mt-2 max-w-[200px] mx-auto opacity-60">Заполните поля и нажмите кнопку. Результат придет в бот.</p>
                   </div>
                 )}
-                
+
                 {error && (
                    <div className="absolute bottom-6 left-6 right-6 bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm font-bold text-center border border-red-100">
                      {error}

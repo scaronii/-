@@ -115,6 +115,20 @@ export const userService = {
       return 0;
     }
   },
+
+  async getUserMusicCount(userId: number) {
+    if (!supabase) return 0;
+    try {
+      const { count, error } = await supabase
+        .from('generated_music')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      if (error) return 0;
+      return count || 0;
+    } catch (e) {
+      return 0;
+    }
+  },
   
   async saveGeneratedImage(userId: number, url: string, prompt: string, model: string) {
     if (!supabase) return;
@@ -148,10 +162,29 @@ export const userService = {
     }
   },
 
-  async getUserContent(userId: number, type: 'image' | 'video') {
+  async saveGeneratedMusic(userId: number, url: string, prompt: string, model: string) {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('generated_music')
+        .insert([{
+          user_id: userId,
+          url: url,
+          prompt: prompt,
+          model: model
+        }]);
+    } catch (e) {
+      console.error("Error saving generated music:", e);
+    }
+  },
+
+  async getUserContent(userId: number, type: 'image' | 'video' | 'music') {
     if (!supabase) return [];
     try {
-      const table = type === 'image' ? 'generated_images' : 'generated_videos';
+      let table = 'generated_images';
+      if (type === 'video') table = 'generated_videos';
+      if (type === 'music') table = 'generated_music';
+
       const { data, error } = await supabase
         .from(table)
         .select('*')

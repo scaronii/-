@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { TelegramUser } from '../types';
-import { User, CreditCard, MessageSquare, Save, Settings, ImageIcon, Video, LayoutGrid, BarChart3 } from 'lucide-react';
+import { User, CreditCard, MessageSquare, Save, Settings, ImageIcon, Video, LayoutGrid, BarChart3, Music } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Gallery } from './Gallery';
 
@@ -11,6 +11,7 @@ interface ProfileProps {
   messageCount: number;
   imageCount: number;
   videoCount?: number;
+  musicCount?: number;
   sessionsCount: number;
   systemInstruction: string;
   onSaveSystemInstruction: (instruction: string) => void;
@@ -23,6 +24,7 @@ export const Profile: React.FC<ProfileProps> = ({
   messageCount,
   imageCount,
   videoCount = 0,
+  musicCount = 0,
   sessionsCount,
   systemInstruction,
   onSaveSystemInstruction,
@@ -91,46 +93,56 @@ export const Profile: React.FC<ProfileProps> = ({
         {activeTab === 'stats' ? (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
+                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
                      <MessageSquare size={24} />
                   </div>
                   <div>
                      <div className="text-2xl font-bold text-charcoal">{messageCount}</div>
-                     <div className="text-sm text-gray-500 font-medium">Сообщений</div>
+                     <div className="text-xs md:text-sm text-gray-500 font-medium">Сообщений</div>
                   </div>
                </div>
                
-               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
+                  <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center shrink-0">
                      <ImageIcon size={24} />
                   </div>
                   <div>
                      <div className="text-2xl font-bold text-charcoal">{imageCount}</div>
-                     <div className="text-sm text-gray-500 font-medium">Изображений</div>
+                     <div className="text-xs md:text-sm text-gray-500 font-medium">Изображений</div>
                   </div>
                </div>
 
-               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
+                  <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shrink-0">
                      <Video size={24} />
                   </div>
                   <div>
                      <div className="text-2xl font-bold text-charcoal">{videoCount}</div>
-                     <div className="text-sm text-gray-500 font-medium">Видео</div>
+                     <div className="text-xs md:text-sm text-gray-500 font-medium">Видео</div>
+                  </div>
+               </div>
+
+               <div className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
+                  <div className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center shrink-0">
+                     <Music size={24} />
+                  </div>
+                  <div>
+                     <div className="text-2xl font-bold text-charcoal">{musicCount}</div>
+                     <div className="text-xs md:text-sm text-gray-500 font-medium">Треков</div>
                   </div>
                </div>
                
                <div 
-                 className="bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex items-center gap-4 cursor-pointer hover:border-lime transition-all hover:shadow-lg active:scale-[0.98]" 
+                 className="col-span-2 md:col-span-2 lg:col-span-4 bg-surface p-6 rounded-[2rem] shadow-soft border border-gray-50 flex items-center justify-center gap-4 cursor-pointer hover:border-lime transition-all hover:shadow-lg active:scale-[0.98] mt-2" 
                  onClick={onNavigateToPricing}
                >
                   <div className="w-12 h-12 bg-yellow-50 text-yellow-600 rounded-2xl flex items-center justify-center">
                      <CreditCard size={24} />
                   </div>
                   <div>
-                     <div className="text-lg font-bold text-charcoal text-lime-700 underline decoration-lime/50 underline-offset-2">Пополнить</div>
+                     <div className="text-lg font-bold text-charcoal text-lime-700 underline decoration-lime/50 underline-offset-2">Пополнить баланс</div>
                      <div className="text-sm text-gray-500 font-medium">Купить звезды</div>
                   </div>
                </div>

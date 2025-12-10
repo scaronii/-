@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [messageCount, setMessageCount] = useState<number>(0);
   const [imageCount, setImageCount] = useState<number>(0);
   const [videoCount, setVideoCount] = useState<number>(0);
+  const [musicCount, setMusicCount] = useState<number>(0);
 
   useEffect(() => {
     const initApp = async () => {
@@ -58,6 +59,9 @@ const App: React.FC = () => {
 
         const vidCount = await userService.getUserVideoCount(user.id);
         setVideoCount(vidCount);
+
+        const musCount = await userService.getUserMusicCount(user.id);
+        setMusicCount(musCount);
 
         const history = await userService.getUserChats(user.id);
         if (history.length > 0) {
@@ -301,6 +305,7 @@ const App: React.FC = () => {
             messageCount={messageCount}
             imageCount={imageCount}
             videoCount={videoCount}
+            musicCount={musicCount}
             sessionsCount={sessions.length}
             systemInstruction={systemInstruction}
             onSaveSystemInstruction={setSystemInstruction}
