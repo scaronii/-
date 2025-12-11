@@ -29,7 +29,10 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const [selectedModel, setSelectedModel] = useState(IMAGE_MODELS[0].id);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const [isGenerating, setIsGenerating] = useState(false);
+  
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatedPrompt, setGeneratedPrompt] = useState<string>(''); // Храним промпт созданной картинки
+
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{url: string, prompt: string}[]>([]);
   const [attachment, setAttachment] = useState<{ name: string; mimeType: string; data: string } | null>(null);
@@ -38,7 +41,6 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const modelInfo = IMAGE_MODELS.find(m => m.id === selectedModel);
-  // Robustly handle 0 cost (free models)
   const cost = (modelInfo && modelInfo.cost !== undefined) ? modelInfo.cost : 50;
 
   const handleRandomPrompt = () => {
@@ -67,10 +69,11 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
     setAttachment(null);
   };
 
-  const handleSendToChat = async () => {
-    if (!generatedImage || !tgUser) return;
+  const sendToTelegram = async (url: string, promptText: string, manual: boolean = false) => {
+    if (!tgUser) return;
     
-    setIsSending(true);
+    // Если отправка ручная, включаем спиннер на кнопке
+    if (manual) setIsSending(true);
 
     try {
       const res = await fetch('/api/send-image', {
@@ -78,31 +81,30 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: tgUser.id,
-          imageUrl: generatedImage,
-          caption: `Prompt: ${prompt}\nModel: ${IMAGE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`
+          imageUrl: url,
+          caption: `Prompt: ${promptText}\nModel: ${IMAGE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}`
         })
       });
       
       const data = await res.json();
       
       if (data.success) {
-         if ((window as any).Telegram?.WebApp) {
+         if (manual && (window as any).Telegram?.WebApp) {
              (window as any).Telegram.WebApp.showPopup({
                  title: 'Готово!',
                  message: 'Изображение отправлено вам в чат.',
                  buttons: [{type: 'ok'}]
              });
-         } else {
-             alert('Картинка отправлена вам в чат!');
          }
       } else {
-         alert('Ошибка отправки: ' + (data.error || 'Unknown'));
+         if (manual) alert('Ошибка отправки: ' + (data.error || 'Unknown'));
+         console.error('Auto-send error:', data.error);
       }
     } catch (e) {
       console.error(e);
-      alert('Не удалось отправить картинку. Попробуйте еще раз.');
+      if (manual) alert('Не удалось отправить картинку.');
     } finally {
-      setIsSending(false);
+      if (manual) setIsSending(false);
     }
   };
 
@@ -119,28 +121,28 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
     setGeneratedImage(null);
 
     try {
-      // Pass attachment if present for Vision Remix
       const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : undefined;
+      const currentPrompt = prompt; // Запоминаем промпт на момент начала генерации
       
-      const result = await generateImage(selectedModel, prompt, aspectRatio, currentAttachment);
+      const result = await generateImage(selectedModel, currentPrompt, aspectRatio, currentAttachment);
       if (result.url) {
         setGeneratedImage(result.url);
-        setHistory(prev => [{ url: result.url!, prompt }, ...prev]);
-        setAttachment(null); // Clear attachment after successful gen
+        setGeneratedPrompt(currentPrompt); // Сохраняем для повторной отправки
+        setHistory(prev => [{ url: result.url!, prompt: currentPrompt }, ...prev]);
+        setAttachment(null); 
         
-        // Deduct balance
         if (tgUser) {
-           // Only deduct if cost > 0
            if (cost > 0) {
               const newBal = await userService.deductTokens(tgUser.id, cost);
               if (newBal !== undefined) onUpdateBalance(newBal);
            }
            
-           // Save to DB and update stats
-           userService.saveGeneratedImage(tgUser.id, result.url!, prompt, selectedModel);
+           userService.saveGeneratedImage(tgUser.id, result.url!, currentPrompt, selectedModel);
            if (onImageGenerated) onImageGenerated();
+
+           // АВТОМАТИЧЕСКАЯ ОТПРАВКА
+           await sendToTelegram(result.url!, currentPrompt, false);
         } else {
-           // Local demo mode
            if (cost > 0) {
               onUpdateBalance(balance - cost);
            }
@@ -151,7 +153,6 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
       }
     } catch (err: any) {
       console.error("Image Gen Error Caught in Component:", err);
-      // Display detailed error message from the service
       setError(err.message || 'Ошибка генерации. Проверьте соединение или выберите другую модель.');
     } finally {
       setIsGenerating(false);
@@ -160,7 +161,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8 pt-16 md:pt-6">
+      <div className="max-w-6xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -172,9 +173,6 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
               Генерация Изображений
             </h1>
             <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте искусство с помощью FLUX 1.1 Pro, Recraft и DALL-E.</p>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 text-sm font-medium text-gray-500 w-fit">
-             Баланс: <span className="text-charcoal font-bold">{balance.toLocaleString()}</span> ★
           </div>
         </div>
 
@@ -249,7 +247,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                  </h3>
                  <div className="grid grid-cols-2 gap-3">
                    {history.slice(0, 4).map((item, idx) => (
-                     <div key={idx} className="aspect-square rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm border border-gray-100 hover:shadow-md transition-all" onClick={() => setGeneratedImage(item.url)}>
+                     <div key={idx} className="aspect-square rounded-2xl overflow-hidden relative group cursor-pointer shadow-sm border border-gray-100 hover:shadow-md transition-all" onClick={() => { setGeneratedImage(item.url); setGeneratedPrompt(item.prompt); }}>
                        <img src={item.url} alt="history" className="w-full h-full object-cover" />
                        <div className="absolute inset-0 bg-charcoal/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                      </div>
@@ -345,7 +343,7 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ balance, onUpdat
                   <div className="absolute bottom-6 right-6 flex gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
                     {tgUser && (
                         <button 
-                          onClick={handleSendToChat}
+                          onClick={() => sendToTelegram(generatedImage!, generatedPrompt, true)}
                           disabled={isSending}
                           className="bg-blue-600 text-white px-5 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
                         >

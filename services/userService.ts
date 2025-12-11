@@ -278,6 +278,21 @@ export const userService = {
     }
   },
 
+  async updateChatTitle(chatId: string, title: string) {
+    if (!supabase) return;
+    // Basic UUID validation
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) return;
+    
+    try {
+      await supabase
+        .from('chats')
+        .update({ title })
+        .eq('id', chatId);
+    } catch (e) {
+      console.error("Error updating chat title:", e);
+    }
+  },
+
   async saveMessage(chatId: string, role: 'user' | 'model', text: string) {
     if (!supabase) return;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
@@ -298,10 +313,6 @@ export const userService = {
   async deleteChat(chatId: string) {
     if (!supabase) return false;
     try {
-      // Assuming Cascade Delete is set up in Supabase for messages
-      // If not, we would delete messages here first:
-      // await supabase.from('messages').delete().eq('chat_id', chatId);
-      
       const { error } = await supabase
         .from('chats')
         .delete()

@@ -122,10 +122,10 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-4 md:p-8 pt-20 md:pt-8">
+    <div className="flex flex-col h-full overflow-y-auto p-4 md:p-8">
       <div className="max-w-5xl mx-auto w-full space-y-8">
         
-        {/* Header */}
+        {/* Header - Removed local balance and model name */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-charcoal flex items-center gap-3">
@@ -134,10 +134,7 @@ export const MusicGenerator: React.FC<MusicGeneratorProps> = ({ balance, onUpdat
               </span>
               Музыкальная Студия
             </h1>
-            <p className="text-gray-500 mt-2 font-medium">Создавайте хиты с MiniMax Music 2.0</p>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-xl border border-gray-100 font-bold text-charcoal shadow-sm">
-             Баланс: {balance} ★
+            <p className="text-gray-500 mt-2 font-medium">Создавайте уникальные треки с вокалом</p>
           </div>
         </div>
 

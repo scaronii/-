@@ -58,7 +58,7 @@ export const Pricing: React.FC<PricingProps> = ({ tgUser }) => {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-12 pt-16 md:pt-6">
+      <div className="max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-12">
         
         <div className="text-center mb-8 md:mb-16">
           <h1 className="text-3xl md:text-5xl font-bold text-charcoal mb-4 md:mb-6 tracking-tight">Магазин Звезд</h1>

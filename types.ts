@@ -40,7 +40,7 @@ export interface CreditPack {
   isPopular?: boolean;
 }
 
-export type ViewState = 'dashboard' | 'chat' | 'images' | 'video' | 'music' | 'pricing' | 'docs' | 'profile';
+export type ViewState = 'dashboard' | 'chat' | 'images' | 'video' | 'music' | 'pricing' | 'docs' | 'profile' | 'gallery';
 
 export interface TelegramUser {
   id: number;

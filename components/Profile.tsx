@@ -42,7 +42,7 @@ export const Profile: React.FC<ProfileProps> = ({
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto w-full p-4 md:p-6 lg:p-10 pt-16 md:pt-6 space-y-6 md:space-y-8">
+      <div className="max-w-5xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8">
         <h1 className="text-3xl md:text-4xl font-bold text-charcoal tracking-tight mb-2 md:mb-6">Личный кабинет</h1>
 
         {/* User Card */}

@@ -8,12 +8,14 @@ import { MusicGenerator } from './components/MusicGenerator';
 import { Pricing } from './components/Pricing';
 import { SettingsModal } from './components/SettingsModal';
 import { Profile } from './components/Profile';
+import { Gallery } from './components/Gallery';
 import { Dashboard } from './components/Dashboard';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
-import { Menu } from 'lucide-react';
+import { Menu, Zap } from 'lucide-react';
 import { TEXT_MODELS } from './constants';
+import { clsx } from 'clsx';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
@@ -40,6 +42,7 @@ const App: React.FC = () => {
         const tg = (window as any).Telegram.WebApp;
         tg.ready();
         tg.expand();
+        tg.enableClosingConfirmation();
         if (tg.initDataUnsafe?.user) {
           user = tg.initDataUnsafe.user;
           setTgUser(user);
@@ -67,14 +70,11 @@ const App: React.FC = () => {
         if (history.length > 0) {
           setSessions(history);
           setCurrentSessionId(history[0].id);
-          // Do NOT automatically switch to chat view, keep 'dashboard'
         } else {
-          // Setup new chat but don't switch view
           const newId = await createNewChatSession(user.id, false);
           setCurrentSessionId(newId);
         }
       } else {
-         // Local mode
          const newId = await createNewChatSession(undefined, false);
          setCurrentSessionId(newId);
       }
@@ -139,16 +139,15 @@ const App: React.FC = () => {
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0];
 
-  const handleSendMessage = async (text: string, modelId: string, attachment: { mimeType: string; data: string } | null, useSearch: boolean) => {
+  const handleSendMessage = async (text: string, modelId: string, attachment: { mimeType: string; data: string; name?: string } | null, useSearch: boolean) => {
     if (!currentSessionId) return;
 
     const model = TEXT_MODELS.find(m => m.id === modelId);
     const cost = model?.cost || 1;
-    
     const isFree = messageCount < 10 && cost === 1;
 
     if (!isFree && balance < cost) {
-      alert(`Недостаточно звезд. Стоимость запроса: ${cost} ★. Ваш баланс: ${balance} ★.`);
+      alert(`Недостаточно звезд. Стоимость: ${cost} ★. Ваш баланс: ${balance} ★.`);
       setCurrentView('pricing');
       return;
     }
@@ -160,12 +159,20 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
+    // Calculate intelligent chat title based on first message context
+    let newChatTitle = text.slice(0, 40).replace(/[\r\n]+/g, ' ').trim();
+    if (text.length > 40) newChatTitle += '...';
+    if (!newChatTitle && attachment) newChatTitle = `Файл: ${attachment.name || 'Unknown'}`;
+    if (!newChatTitle) newChatTitle = "Новый чат";
+
+    const isFirstMessage = currentSession.messages.length === 0;
+
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
         return {
           ...s,
           messages: [...s.messages, userMsg],
-          title: s.messages.length === 0 ? text.slice(0, 30) : s.title 
+          title: isFirstMessage ? newChatTitle : s.title 
         };
       }
       return s;
@@ -173,6 +180,9 @@ const App: React.FC = () => {
     
     if (tgUser) {
        userService.saveMessage(currentSessionId, 'user', userMsg.text);
+       if (isFirstMessage) {
+           userService.updateChatTitle(currentSessionId, newChatTitle);
+       }
        setMessageCount(prev => prev + 1);
     }
 
@@ -251,87 +261,34 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (currentView) {
-      case 'dashboard':
+      case 'dashboard': return <Dashboard user={tgUser} onNavigate={setCurrentView} balance={balance} />;
+      case 'chat': return <ChatInterface messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isTyping={isTyping} selectedModelId={selectedModelId} onSelectModel={setSelectedModelId} />;
+      case 'images': return <ImageGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} onImageGenerated={() => setImageCount(prev => prev + 1)} />;
+      case 'video': return <VideoGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} onVideoGenerated={() => setVideoCount(prev => prev + 1)} />;
+      case 'music': return <MusicGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
+      case 'pricing': return <Pricing tgUser={tgUser} />;
+      case 'gallery': 
         return (
-          <Dashboard
-             user={tgUser}
-             onNavigate={setCurrentView}
-             balance={balance}
-          />
+          <div className="flex flex-col h-full overflow-y-auto">
+            <div className="max-w-6xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6">
+                <h1 className="text-3xl md:text-4xl font-bold text-charcoal tracking-tight">Мой контент</h1>
+                <Gallery user={tgUser} />
+            </div>
+          </div>
         );
-      case 'chat':
-        return (
-          <ChatInterface 
-            messages={currentSession?.messages || []}
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            selectedModelId={selectedModelId}
-            onSelectModel={setSelectedModelId}
-          />
-        );
-      case 'images':
-        return (
-          <ImageGenerator 
-             balance={balance} 
-             onUpdateBalance={setBalance} 
-             tgUser={tgUser} 
-             onImageGenerated={() => setImageCount(prev => prev + 1)}
-          />
-        );
-      case 'video':
-        return (
-          <VideoGenerator
-             balance={balance}
-             onUpdateBalance={setBalance}
-             tgUser={tgUser}
-             onVideoGenerated={() => setVideoCount(prev => prev + 1)}
-          />
-        );
-      case 'music':
-        return (
-          <MusicGenerator 
-             balance={balance} 
-             onUpdateBalance={setBalance} 
-             tgUser={tgUser} 
-          />
-        );
-      case 'pricing':
-        return <Pricing tgUser={tgUser} />;
-      case 'profile':
-        return (
-          <Profile 
-            user={tgUser}
-            balance={balance}
-            messageCount={messageCount}
-            imageCount={imageCount}
-            videoCount={videoCount}
-            musicCount={musicCount}
-            sessionsCount={sessions.length}
-            systemInstruction={systemInstruction}
-            onSaveSystemInstruction={setSystemInstruction}
-            onNavigateToPricing={() => setCurrentView('pricing')}
-          />
-        );
+      case 'profile': return <Profile user={tgUser} balance={balance} messageCount={messageCount} imageCount={imageCount} videoCount={videoCount} musicCount={musicCount} sessionsCount={sessions.length} systemInstruction={systemInstruction} onSaveSystemInstruction={setSystemInstruction} onNavigateToPricing={() => setCurrentView('pricing')} />;
       case 'docs':
         return (
-          <div className="p-4 md:p-6 lg:p-12 overflow-y-auto h-full pt-16 md:pt-6">
+          <div className="p-4 md:p-6 lg:p-12 overflow-y-auto h-full">
             <div className="max-w-5xl mx-auto space-y-10 pb-12">
               <div className="bg-charcoal text-white rounded-[2.5rem] p-6 md:p-10 text-center shadow-xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-lime/20 rounded-full filter blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-lime/30 transition-colors duration-500"></div>
                 <h1 className="text-3xl md:text-4xl font-bold mb-4 relative z-10">База знаний UniAI</h1>
-                <p className="text-gray-300 text-base md:text-lg relative z-10">Профессиональные гайды и инструкции. Учитесь бесплатно.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-surface p-6 md:p-8 rounded-[2rem] shadow-soft border border-gray-50">
-                    <h3 className="text-xl md:text-2xl font-bold text-charcoal mb-4">Начало работы</h3>
-                    <p className="text-gray-600">Инструкция по использованию нейросетей...</p>
-                 </div>
+                <p className="text-gray-300 text-base md:text-lg relative z-10">Профессиональные гайды и инструкции.</p>
               </div>
             </div>
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
@@ -350,34 +307,57 @@ const App: React.FC = () => {
         onDeleteChat={handleDeleteChat}
       />
       <main className="flex-1 h-full relative flex flex-col min-w-0 md:p-4">
-        <div className="md:hidden absolute top-3 left-3 z-20 flex items-center gap-2">
-          <button onClick={() => setSidebarOpen(true)} className="p-2.5 bg-surface rounded-xl shadow-md text-charcoal border border-gray-100 active:scale-95 transition-transform">
-            <Menu size={22} />
-          </button>
-          {tgUser && currentView !== 'dashboard' && (
-             <div 
-               className="bg-surface px-3 py-2.5 rounded-xl shadow-md border border-gray-100 text-xs font-bold text-charcoal flex items-center gap-1.5 active:scale-95 transition-transform"
-               onClick={() => setCurrentView('profile')}
-             >
-               <span className="w-2 h-2 bg-lime rounded-full animate-pulse"></span>
-               {balance.toLocaleString()} ★
+        
+        {/* Mobile App Bar (Header) */}
+        <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white z-40 flex items-center justify-between px-4 shadow-sm border-b border-gray-100">
+           <button 
+             onClick={() => setSidebarOpen(true)}
+             className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-charcoal active:scale-95 transition-all"
+           >
+             <Menu size={24} strokeWidth={2.5} />
+           </button>
+
+           <div className="font-bold text-lg text-charcoal flex items-center gap-2">
+             <div className="w-8 h-8 bg-charcoal text-lime rounded-lg flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
              </div>
-          )}
+             UniAI
+           </div>
+           
+           <div 
+             className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-bold text-charcoal active:scale-95 transition-transform"
+             onClick={() => setCurrentView('pricing')}
+           >
+              <Zap size={14} className="text-lime-600 fill-lime-600" />
+              {balance.toLocaleString()}
+           </div>
         </div>
-        <div className="hidden md:block absolute top-6 right-8 z-20">
-            {/* Show balance here only if not on dashboard to avoid duplication, or keep for consistency */}
-             <div 
-               className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" 
-               onClick={() => setCurrentView('profile')}
-             >
-               <span>Баланс:</span>
-               <span className="text-lime-700">{balance.toLocaleString()} ★</span>
-               {messageCount < 10 && <span className="text-[10px] bg-lime px-2 py-0.5 rounded-full">FREE {10 - messageCount}</span>}
-             </div>
+
+        {/* Desktop Balance Badge - Hidden on Dashboard to avoid duplication */}
+        {currentView !== 'dashboard' && (
+          <div className="hidden md:block absolute top-6 right-8 z-20">
+               <div 
+                 className="bg-white px-4 py-2 rounded-xl shadow-soft border border-gray-50 text-sm font-bold text-charcoal flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" 
+                 onClick={() => setCurrentView('profile')}
+               >
+                 <span>Баланс:</span>
+                 <span className="text-lime-700">{balance.toLocaleString()} ★</span>
+                 {messageCount < 10 && <span className="text-[10px] bg-lime px-2 py-0.5 rounded-full">FREE {10 - messageCount}</span>}
+               </div>
+          </div>
+        )}
+
+        {/* Main Content Area - Global padding handled here */}
+        <div className="h-full bg-transparent md:bg-white md:rounded-[2.5rem] md:shadow-soft md:border md:border-gray-50 overflow-hidden relative flex flex-col pt-16 md:pt-0">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+             {renderContent()}
+          </div>
         </div>
-        <div className="h-full bg-transparent md:bg-white md:rounded-[2.5rem] md:shadow-soft md:border md:border-gray-50 overflow-hidden relative">
-          {renderContent()}
-        </div>
+
       </main>
       <SettingsModal 
         isOpen={settingsOpen}

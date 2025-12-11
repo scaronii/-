@@ -115,7 +115,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8 pt-16 md:pt-6">
+      <div className="max-w-6xl mx-auto w-full p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -127,9 +127,6 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ balance, onUpdat
               Генерация Видео
             </h1>
             <p className="text-gray-500 text-sm md:text-base font-medium">Создавайте клипы с помощью Sora 2. Процесс идет в фоне.</p>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 text-sm font-medium text-gray-500 w-fit">
-             Баланс: <span className="text-charcoal font-bold">{balance.toLocaleString()}</span> ★
           </div>
         </div>
 

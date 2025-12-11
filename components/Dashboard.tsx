@@ -72,7 +72,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, balance 
 
   return (
     <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
-      <div className="max-w-6xl mx-auto w-full p-4 md:p-8 pt-20 md:pt-10 space-y-8">
+      <div className="max-w-6xl mx-auto w-full p-4 md:p-8 space-y-8">
         
         {/* Welcome Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

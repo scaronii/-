@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, Menu, LogOut, ChevronRight, Video, Trash2, LayoutGrid, Music } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, X, ChevronRight, Video, Trash2, LayoutGrid, Music, FolderHeart } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -35,24 +35,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'images', label: 'Генерация', icon: ImageIcon },
     { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
     { id: 'music', label: 'Музыка', icon: Music, badge: 'v2.0' },
+    { id: 'gallery', label: 'Мой контент', icon: FolderHeart },
     { id: 'pricing', label: 'Магазин', icon: CreditCard },
     { id: 'docs', label: 'Инструкции', icon: BookOpen },
   ];
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {/* Mobile Overlay - High Z-Index to cover App Bar */}
       <div 
         className={clsx(
-          "fixed inset-0 bg-charcoal/20 backdrop-blur-sm z-40 md:hidden transition-opacity",
+          "fixed inset-0 bg-charcoal/60 backdrop-blur-sm z-[60] md:hidden transition-opacity duration-300",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={toggleOpen}
       />
 
       <aside className={clsx(
-        "fixed md:static inset-y-4 left-4 z-50 w-72 bg-surface rounded-3xl shadow-soft flex flex-col transition-transform duration-300 transform border border-gray-100/50 md:ml-4 md:my-4",
-        isOpen ? "translate-x-0" : "-translate-x-[120%] md:translate-x-0"
+        "fixed md:static inset-y-0 left-0 z-[70] w-72 bg-surface rounded-r-3xl md:rounded-3xl shadow-2xl md:shadow-soft flex flex-col transition-transform duration-300 transform border-r border-gray-100 md:border md:ml-4 md:my-4",
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         {/* Header */}
         <div className="p-6 flex items-center justify-between">
@@ -66,8 +67,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <span>UniAI</span>
           </div>
-          <button onClick={toggleOpen} className="md:hidden text-gray-400 hover:text-charcoal transition-colors">
-            <Menu size={24} />
+          {/* Prominent Close Button */}
+          <button 
+            onClick={toggleOpen} 
+            className="md:hidden w-10 h-10 flex items-center justify-center bg-gray-100 text-charcoal hover:bg-gray-200 rounded-xl transition-colors active:scale-95"
+            aria-label="Close Menu"
+          >
+            <X size={24} strokeWidth={2.5} />
           </button>
         </div>
 

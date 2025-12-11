@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 
 interface ChatInterfaceProps {
   messages: Message[];
-  onSendMessage: (text: string, modelId: string, attachment: { mimeType: string; data: string } | null, useSearch: boolean) => void;
+  onSendMessage: (text: string, modelId: string, attachment: { mimeType: string; data: string; name?: string } | null, useSearch: boolean) => void;
   isTyping: boolean;
   selectedModelId: string;
   onSelectModel: (id: string) => void;
@@ -101,7 +101,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if ((!input.trim() && !attachment) || isTyping) return;
     
     const text = input;
-    const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null;
+    const currentAttachment = attachment ? { mimeType: attachment.mimeType, data: attachment.data, name: attachment.name } : null;
     
     setInput('');
     setAttachment(null);
