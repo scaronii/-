@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic2, Upload, Play, Loader2, Sparkles, Volume2, Trash2, CheckCircle2, AlertCircle, Download, Square, Mic, RefreshCw } from 'lucide-react';
+import { Mic2, Upload, Play, Loader2, Sparkles, Volume2, Trash2, CheckCircle2, AlertCircle, Download, Square, Mic, RefreshCw, Globe } from 'lucide-react';
 import { TelegramUser } from '../types';
 import { userService } from '../services/userService';
 import { clsx } from 'clsx';
@@ -31,6 +31,7 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
   const [file, setFile] = useState<File | null>(null);
   const [voiceName, setVoiceName] = useState('');
   const [text, setText] = useState('Привет! Это мой клонированный голос, созданный с помощью UniAI.');
+  const [language, setLanguage] = useState<string>('ru-RU');
   
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -65,7 +66,13 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
   useEffect(() => {
       if (isRecording) {
           timerRef.current = window.setInterval(() => {
-              setRecordingTime(prev => prev + 1);
+              setRecordingTime(prev => {
+                  if (prev >= 60) {
+                      stopRecording();
+                      return 60;
+                  }
+                  return prev + 1;
+              });
           }, 1000);
       } else {
           if (timerRef.current) clearInterval(timerRef.current);
@@ -139,7 +146,9 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
           };
 
           recorder.onstop = () => {
-              const blob = new Blob(chunksRef.current, { type: 'audio/mp3' }); // Browser will likely save as webm/ogg, but we label as we prefer
+              // Ипользуем MIME тип рекордера или дефолтный webm/mp4
+              const type = recorder.mimeType || 'audio/webm';
+              const blob = new Blob(chunksRef.current, { type: type });
               setRecordedBlob(blob);
               setFile(null); // Clear file if recording exists
               
@@ -147,7 +156,8 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
               stream.getTracks().forEach(track => track.stop());
           };
 
-          recorder.start();
+          // Записываем кусками по 1000мс, чтобы не терять данные при длинной записи
+          recorder.start(1000); 
           setIsRecording(true);
           setRecordingTime(0);
           setRecordedBlob(null);
@@ -158,7 +168,7 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
   };
 
   const stopRecording = () => {
-      if (mediaRecorderRef.current && isRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
       }
@@ -243,8 +253,13 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
               if (file) {
                   formData.append('file', file);
               } else if (recordedBlob) {
-                  // Important: Give it a filename with extension
-                  formData.append('file', recordedBlob, `recording_${Date.now()}.wav`);
+                  // Пытаемся определить правильное расширение
+                  let ext = 'wav';
+                  if (recordedBlob.type.includes('mp4') || recordedBlob.type.includes('aac')) ext = 'm4a';
+                  if (recordedBlob.type.includes('mpeg') || recordedBlob.type.includes('mp3')) ext = 'mp3';
+                  if (recordedBlob.type.includes('webm')) ext = 'webm'; // MiniMax может не принимать webm
+
+                  formData.append('file', recordedBlob, `recording_${Date.now()}.${ext}`);
               }
               
               formData.append('purpose', 'voice_clone');
@@ -314,7 +329,7 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
 
           // --- Step 2: Synthesize Speech (T2A) ---
           setStatus('Синтез речи...');
-          const t2aPayload = {
+          const t2aPayload: any = {
               model: "speech-2.6-hd",
               text: text,
               voice_setting: {
@@ -330,6 +345,11 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
                   channel: 1
               }
           };
+
+          if (language !== 'auto') {
+             // Adding language hint if supported by API version or just for structure
+             t2aPayload.language = language; 
+          }
 
           const t2aRes = await fetch('/minimax-api?path=/v1/t2a_v2', {
               method: 'POST',
@@ -403,7 +423,7 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
             </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 relative items-start">
             {/* Input Section */}
             <div className="md:col-span-7 space-y-6">
                 
@@ -459,7 +479,7 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
                                             >
                                                 <Mic size={32} />
                                             </button>
-                                            <p className="text-sm text-gray-500">Нажмите для записи (мин. 10 сек)</p>
+                                            <p className="text-sm text-gray-500">Нажмите для записи (10-60 сек)</p>
                                         </>
                                     )}
                                     
@@ -569,9 +589,31 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
                 )}
 
                 <div className="bg-white p-6 rounded-[2rem] shadow-soft border border-gray-50">
-                    <label className="block text-sm font-bold text-charcoal mb-4 uppercase tracking-wider flex items-center gap-2">
-                        <Sparkles size={16} /> {activeTab === 'new' ? '3.' : '2.'} Текст для озвучки
-                    </label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <label className="text-sm font-bold text-charcoal uppercase tracking-wider flex items-center gap-2">
+                           <Sparkles size={16} /> {activeTab === 'new' ? '3.' : '2.'} Текст для озвучки
+                        </label>
+                        <div className="relative">
+                             <Globe size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                             <select 
+                                value={language} 
+                                onChange={e => setLanguage(e.target.value)}
+                                className="appearance-none bg-gray-50 border border-gray-200 text-xs font-bold pl-8 pr-8 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer hover:bg-gray-100 transition-colors"
+                             >
+                                 <option value="ru-RU">Русский (RU)</option>
+                                 <option value="auto">Авто-определение</option>
+                                 <option value="en-US">English (US)</option>
+                                 <option value="en-GB">English (UK)</option>
+                                 <option value="ja-JP">Japanese (JP)</option>
+                                 <option value="zh-CN">Chinese (CN)</option>
+                                 <option value="de-DE">German (DE)</option>
+                                 <option value="es-ES">Spanish (ES)</option>
+                                 <option value="fr-FR">French (FR)</option>
+                                 <option value="ko-KR">Korean (KR)</option>
+                             </select>
+                             <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-[10px]">▼</div>
+                        </div>
+                    </div>
                     <textarea 
                         value={text}
                         onChange={(e) => setText(e.target.value)}
@@ -603,8 +645,13 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
             </div>
 
             {/* Result Section */}
-            <div className="md:col-span-5">
-                 <div className="bg-white p-8 rounded-[2.5rem] shadow-soft border border-gray-50 h-full min-h-[300px] flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="md:col-span-5 md:sticky md:top-8 self-start transition-all duration-300">
+                 <div className="bg-white p-8 rounded-[2.5rem] shadow-soft border border-gray-100 min-h-[450px] flex flex-col items-center justify-center text-center relative overflow-hidden">
+                     {/* Decorative background blob */}
+                     {!resultAudioUrl && (
+                        <div className="absolute top-[-50%] right-[-50%] w-full h-full bg-gradient-to-br from-blue-50/50 to-purple-50/50 rounded-full blur-3xl -z-10 pointer-events-none opacity-50"></div>
+                     )}
+                     
                      {resultAudioUrl ? (
                          <div className="animate-fadeIn w-full">
                              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
@@ -625,11 +672,13 @@ export const VoiceCloning: React.FC<VoiceCloningProps> = ({ balance, onUpdateBal
                          </div>
                      ) : (
                          <div className="text-gray-300">
-                             <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                 <Volume2 size={40} className="opacity-20" />
+                             <div className="w-24 h-24 bg-gray-50/50 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6 border border-gray-100">
+                                 <Volume2 size={40} className="opacity-30" />
                              </div>
-                             <p className="font-bold text-lg">Результат будет здесь</p>
-                             <p className="text-sm mt-2 opacity-60 max-w-[200px] mx-auto">Загрузите образец и введите текст, чтобы услышать магию.</p>
+                             <p className="font-bold text-lg text-gray-400">Результат будет здесь</p>
+                             <p className="text-sm mt-3 opacity-60 max-w-[200px] mx-auto leading-relaxed">
+                                Загрузите образец голоса и введите текст, чтобы услышать магию.
+                             </p>
                          </div>
                      )}
 
