@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, X, ChevronRight, Video, Trash2, LayoutGrid, Music, FolderHeart } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, X, ChevronRight, Video, Trash2, LayoutGrid, Music, FolderHeart, Mic2 } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -35,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'images', label: 'Генерация', icon: ImageIcon },
     { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
     { id: 'music', label: 'Музыка', icon: Music, badge: 'v2.0' },
+    { id: 'voice_clone', label: 'Клон голоса', icon: Mic2, badge: 'New' },
     { id: 'gallery', label: 'Мой контент', icon: FolderHeart },
     { id: 'pricing', label: 'Магазин', icon: CreditCard },
     { id: 'docs', label: 'Инструкции', icon: BookOpen },

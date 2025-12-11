@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, Video, CreditCard, BookOpen, Settings, Zap, Sparkles, Music } from 'lucide-react';
+import { MessageSquare, ImageIcon, Video, CreditCard, BookOpen, Settings, Zap, Sparkles, Music, Mic2 } from 'lucide-react';
 import { ViewState, TelegramUser } from '../types';
 import { clsx } from 'clsx';
 
@@ -45,6 +45,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, balance 
       hover: 'group-hover:bg-pink-200'
     },
     {
+      id: 'voice_clone',
+      title: 'Клонирование голоса',
+      description: 'Озвучка текста вашим голосом',
+      icon: Mic2,
+      color: 'bg-blue-100 text-blue-600',
+      hover: 'group-hover:bg-blue-200'
+    },
+    {
       id: 'pricing',
       title: 'Магазин',
       description: 'Пополнить баланс',
@@ -57,8 +65,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, balance 
       title: 'Инструкции',
       description: 'Гайды и помощь',
       icon: BookOpen,
-      color: 'bg-blue-100 text-blue-600',
-      hover: 'group-hover:bg-blue-200'
+      color: 'bg-gray-100 text-gray-600',
+      hover: 'group-hover:bg-gray-200'
     },
     {
       id: 'profile',

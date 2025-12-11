@@ -10,6 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { Profile } from './components/Profile';
 import { Gallery } from './components/Gallery';
 import { Dashboard } from './components/Dashboard';
+import { VoiceCloning } from './components/VoiceCloning';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
@@ -266,6 +267,7 @@ const App: React.FC = () => {
       case 'images': return <ImageGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} onImageGenerated={() => setImageCount(prev => prev + 1)} />;
       case 'video': return <VideoGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} onVideoGenerated={() => setVideoCount(prev => prev + 1)} />;
       case 'music': return <MusicGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
+      case 'voice_clone': return <VoiceCloning balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
       case 'pricing': return <Pricing tgUser={tgUser} />;
       case 'gallery': 
         return (

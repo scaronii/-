@@ -21,7 +21,37 @@ export default async function handler(request: Request) {
     
     formData.append('chat_id', userId);
     formData.append('caption', caption || '🎵 Ваш трек от UniAI');
-    formData.append('audio', audioUrl); // Telegram supports sending via URL
+
+    // Проверка: является ли audioUrl Data URI (Base64)
+    if (audioUrl.startsWith('data:')) {
+        const matches = audioUrl.match(/^data:(.+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+            const mimeType = matches[1]; // например 'audio/mpeg' или 'audio/wav'
+            const base64Data = matches[2];
+            
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            
+            // Определяем расширение файла
+            let ext = 'mp3';
+            if (mimeType.includes('wav')) ext = 'wav';
+            if (mimeType.includes('m4a')) ext = 'm4a';
+            if (mimeType.includes('ogg')) ext = 'ogg';
+
+            formData.append('audio', blob, `audio.${ext}`);
+        } else {
+             // Фолбэк, если регэксп не сработал, пробуем отправить как есть (хотя это вряд ли сработает для Telegram API)
+             formData.append('audio', audioUrl);
+        }
+    } else {
+        // Обычная ссылка
+        formData.append('audio', audioUrl); 
+    }
 
     const response = await fetch(tgUrl, {
       method: 'POST',

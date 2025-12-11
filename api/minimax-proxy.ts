@@ -39,7 +39,12 @@ export default async function handler(request: Request) {
   headers.delete('host');
   headers.delete('content-length');
   headers.set('Authorization', `Bearer ${MINIMAX_KEY}`);
-  headers.set('Content-Type', 'application/json');
+  
+  // ВАЖНО: Не устанавливаем Content-Type принудительно, если клиент его уже прислал.
+  // Это критично для multipart/form-data (загрузка файлов), где браузер сам ставит boundary.
+  if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+  }
 
   try {
     const response = await fetch(finalUrl.toString(), {
