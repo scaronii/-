@@ -22,7 +22,8 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string>('gpt-5-nano'); 
+  // Default set to GPT-5.2 Instant
+  const [selectedModelId, setSelectedModelId] = useState<string>('openai/gpt-5.2-chat'); 
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   

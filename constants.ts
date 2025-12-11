@@ -1,9 +1,34 @@
 
-
 import { AIModel, CreditPack } from './types';
 
 export const TEXT_MODELS: AIModel[] = [
-  // OpenAI GPT-5 Series
+  // OpenAI GPT-5.2 Series
+  { 
+    id: 'openai/gpt-5.2-chat', 
+    name: 'GPT-5.2 Instant', 
+    provider: 'OpenAI', 
+    type: 'text', 
+    isNew: true,
+    cost: 2 
+  },
+  { 
+    id: 'openai/gpt-5.2', 
+    name: 'GPT-5.2 Thinking', 
+    provider: 'OpenAI', 
+    type: 'text', 
+    isNew: true,
+    cost: 15 
+  },
+  { 
+    id: 'openai/gpt-5.2-pro', 
+    name: 'GPT-5.2 Pro', 
+    provider: 'OpenAI', 
+    type: 'text', 
+    isNew: true,
+    cost: 50 
+  },
+
+  // OpenAI GPT-5 Series (Previous)
   { 
     id: 'openai/gpt-5-nano', 
     name: 'OpenAI GPT-5 Nano', 
@@ -16,7 +41,6 @@ export const TEXT_MODELS: AIModel[] = [
     name: 'OpenAI GPT-5', 
     provider: 'OpenAI', 
     type: 'text', 
-    isNew: true,
     cost: 10 
   },
   { 
@@ -24,7 +48,6 @@ export const TEXT_MODELS: AIModel[] = [
     name: 'OpenAI GPT-5.1', 
     provider: 'OpenAI', 
     type: 'text', 
-    isNew: true,
     cost: 15 
   },
 
