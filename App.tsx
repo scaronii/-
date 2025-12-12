@@ -14,7 +14,7 @@ import { VoiceCloning } from './components/VoiceCloning';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
-import { Menu, Zap } from 'lucide-react';
+import { Menu, Zap, GraduationCap, MessageSquare, ImageIcon, Video, Music, Mic2, CreditCard, Lightbulb } from 'lucide-react';
 import { TEXT_MODELS } from './constants';
 import { clsx } from 'clsx';
 
@@ -282,12 +282,150 @@ const App: React.FC = () => {
       case 'profile': return <Profile user={tgUser} balance={balance} messageCount={messageCount} imageCount={imageCount} videoCount={videoCount} musicCount={musicCount} sessionsCount={sessions.length} systemInstruction={systemInstruction} onSaveSystemInstruction={setSystemInstruction} onNavigateToPricing={() => setCurrentView('pricing')} />;
       case 'docs':
         return (
-          <div className="p-4 md:p-6 lg:p-12 overflow-y-auto h-full">
-            <div className="max-w-5xl mx-auto space-y-10 pb-12">
-              <div className="bg-charcoal text-white rounded-[2.5rem] p-6 md:p-10 text-center shadow-xl relative overflow-hidden group">
-                <h1 className="text-3xl md:text-4xl font-bold mb-4 relative z-10">База знаний UniAI</h1>
-                <p className="text-gray-300 text-base md:text-lg relative z-10">Профессиональные гайды и инструкции.</p>
+          <div className="flex flex-col h-full overflow-y-auto">
+            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-8 pb-20">
+              
+              {/* Header */}
+              <div className="bg-charcoal text-white rounded-[2.5rem] p-8 md:p-12 text-center shadow-xl relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-lime/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                   <div className="relative z-10">
+                      <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-6 text-lime">
+                         <GraduationCap size={32} />
+                      </div>
+                      <h1 className="text-3xl md:text-5xl font-bold mb-4">Руководство UniAI</h1>
+                      <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+                         Добро пожаловать в UniAI! Здесь собраны лучшие нейросети мира в одном приложении. 
+                         Никаких VPN и сложных настроек — всё работает внутри Telegram.
+                      </p>
+                   </div>
               </div>
+
+              {/* 1. Chat */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-lime/20 text-lime-700 rounded-2xl flex items-center justify-center">
+                          <MessageSquare size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">1. Умный Чат</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>Ваш персональный ассистент для решения любых задач.</p>
+                       <ul className="list-disc pl-5 space-y-2">
+                          <li><strong>Выбор модели:</strong> Нажмите на название модели вверху экрана, чтобы переключиться между <strong>GPT-5</strong> (умный), <strong>Gemini 2.5</strong> (быстрый) или <strong>Claude 3.5</strong> (человечный).</li>
+                          <li><strong>Работа с файлами:</strong> Нажмите скрепку 📎, чтобы отправить PDF для анализа или фото, чтобы спросить «что на картинке?».</li>
+                          <li><strong>Интернет-поиск:</strong> Нажмите иконку глобуса 🌐, чтобы нейросеть нашла актуальную информацию в Google.</li>
+                       </ul>
+                   </div>
+              </div>
+
+              {/* 2. Images */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+                          <ImageIcon size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">2. Генерация Изображений</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>Создавайте шедевры по текстовому описанию.</p>
+                       <ul className="list-disc pl-5 space-y-2">
+                          <li>Выберите модель (например, <strong>Nana Banana Pro</strong> для реализма или <strong>DALL-E 3</strong> для креатива).</li>
+                          <li>Укажите формат: 1:1 (квадрат), 16:9 (для YouTube) или 9:16 (для Stories).</li>
+                          <li><strong>Vision Remix:</strong> Вы можете загрузить свое фото-референс, и нейросеть перерисует его по заданным инструкциям.</li>
+                       </ul>
+                   </div>
+              </div>
+
+              {/* 3. Video */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                          <Video size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">3. Создание Видео</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>Генерация видео — сложный процесс, требующий времени.</p>
+                       <ol className="list-decimal pl-5 space-y-2">
+                          <li>Опишите сцену максимально подробно (свет, движение камеры, детали).</li>
+                          <li>Нажмите «Создать».</li>
+                          <li><strong>Важно:</strong> Видео генерируется на сервере <strong>3–5 минут</strong>. Вы можете свернуть приложение — готовый результат бот пришлет вам личным сообщением.</li>
+                       </ol>
+                   </div>
+              </div>
+
+              {/* 4. Music */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-pink-50 text-pink-600 rounded-2xl flex items-center justify-center">
+                          <Music size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">4. Музыкальная Студия</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>Пишите песни с вокалом и музыкой.</p>
+                       <ul className="space-y-2">
+                          <li><strong>Шаг 1:</strong> Опишите стиль (например: <em>«Киберпанк, грустный женский вокал, медленный бит»</em>). Так же можете написать — Русская народная песня поздравление Александра с днем рождения, Модный рэп про Москву и так далее. Здесь все ограничивается только вашей фантазией.</li>
+                          <li><strong>Шаг 2:</strong> Нажмите «Сгенерировать текст» или напишите свой собственный.</li>
+                          <li><strong>Шаг 3:</strong> Запустите создание трека. Аудиофайл придет вам в чат через пару минут.</li>
+                       </ul>
+                   </div>
+              </div>
+
+              {/* 5. Voice Cloning (NEW) */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50 ring-2 ring-blue-100">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                          <Mic2 size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">5. Клонирование Голоса</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>Озвучивайте любой текст своим голосом или голосами знаменитостей.</p>
+                       <ol className="list-decimal pl-5 space-y-2">
+                          <li>Перейдите во вкладку «Клон голоса».</li>
+                          <li>Запишите образец голоса (10–60 секунд) или загрузите аудиофайл.</li>
+                          <li>Дайте голосу имя.</li>
+                          <li>Введите текст, и нейросеть озвучит его точь-в-точь как в оригинале.</li>
+                          <li>Голос сохранится и в последствии вы сможете озвучивать другие тексты.</li>
+                       </ol>
+                   </div>
+              </div>
+
+              {/* Balance */}
+              <div className="bg-surface rounded-[2rem] p-6 md:p-8 shadow-soft border border-gray-50">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-yellow-50 text-yellow-600 rounded-2xl flex items-center justify-center">
+                          <CreditCard size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">Баланс и Оплата</h2>
+                   </div>
+                   <div className="space-y-3 text-gray-600 leading-relaxed">
+                       <p>В UniAI используется внутренняя валюта — <strong>Звезды (Stars)</strong>.</p>
+                       <ul className="list-disc pl-5 space-y-2">
+                          <li><strong>Бесплатно:</strong> Каждому пользователю дается стартовый пакет бесплатных запросов.</li>
+                       </ul>
+                   </div>
+              </div>
+
+              {/* Tips */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-[2rem] p-6 md:p-8 border border-gray-200">
+                   <div className="flex items-center gap-4 mb-4">
+                       <div className="w-12 h-12 bg-white text-orange-500 rounded-2xl flex items-center justify-center shadow-sm">
+                          <Lightbulb size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-charcoal">Полезные советы</h2>
+                   </div>
+                   <div className="space-y-4 text-gray-600 leading-relaxed">
+                       <div className="bg-white p-4 rounded-2xl shadow-sm">
+                          <strong>Системная инструкция:</strong> В профиле вы можете задать "Роль" для нейросети (например, <em>"Ты строгий учитель английского"</em>). Эта настройка применится ко всем новым чатам.
+                       </div>
+                       <div className="bg-white p-4 rounded-2xl shadow-sm">
+                          <strong>Галерея:</strong> Все ваши сгенерированные картинки, видео и песни сохраняются в разделе "Мой контент". Вы можете скачать их или отправить в чат в любой момент.
+                       </div>
+                   </div>
+              </div>
+
             </div>
           </div>
         );
@@ -315,9 +453,10 @@ const App: React.FC = () => {
         <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white z-40 flex items-center justify-between px-4 shadow-sm border-b border-gray-100">
            <button 
              onClick={() => setSidebarOpen(true)}
-             className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 text-charcoal active:scale-95 transition-all"
+             className="flex items-center gap-2 h-10 px-4 bg-charcoal text-white rounded-xl active:scale-95 transition-all shadow-md hover:bg-black"
            >
-             <Menu size={24} strokeWidth={2.5} />
+             <Menu size={20} strokeWidth={2.5} />
+             <span className="font-bold text-sm">Меню</span>
            </button>
 
            <div className="font-bold text-lg text-charcoal flex items-center gap-2">

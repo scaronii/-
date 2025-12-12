@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Главная', icon: LayoutGrid },
     { id: 'chat', label: 'Чат', icon: MessageSquare },
-    { id: 'images', label: 'Генерация', icon: ImageIcon },
+    { id: 'images', label: 'Изображения', icon: ImageIcon },
     { id: 'video', label: 'Видео', icon: Video, badge: 'Sora' },
     { id: 'music', label: 'Музыка', icon: Music, badge: 'v2.0' },
     { id: 'voice_clone', label: 'Клон голоса', icon: Mic2, badge: 'New' },
