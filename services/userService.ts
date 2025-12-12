@@ -1,10 +1,11 @@
 
+
 import { supabase } from '../lib/supabase';
 import { ChatSession, Message, TelegramUser } from '../types';
 
 export const userService = {
   // Инициализация пользователя при входе
-  async initUser(tgUser: TelegramUser) {
+  async initUser(tgUser: TelegramUser, startParam?: string) {
     if (!supabase) {
       console.warn("Supabase client not initialized. Skipping user init.");
       return null;
@@ -24,13 +25,44 @@ export const userService = {
 
       if (!existingUser) {
         console.log(`Creating new user: ${tgUser.id}`);
+        
+        let referredBy = null;
+        let initialBalance = 100;
+
+        // Обработка реферальной ссылки (start_param: ref_12345)
+        if (startParam && startParam.startsWith('ref_')) {
+             const referrerId = parseInt(startParam.split('_')[1]);
+             if (!isNaN(referrerId) && referrerId !== tgUser.id) {
+                 // Проверяем существование пригласившего
+                 const { data: referrer } = await supabase
+                    .from('users')
+                    .select('id, balance')
+                    .eq('telegram_id', referrerId)
+                    .maybeSingle();
+                 
+                 if (referrer) {
+                     referredBy = referrerId;
+                     initialBalance += 50; // Бонус новичку
+
+                     // Начисляем бонус пригласившему (100 звезд)
+                     await supabase
+                        .from('users')
+                        .update({ balance: (referrer.balance || 0) + 100 })
+                        .eq('telegram_id', referrerId);
+                     
+                     console.log(`Referral reward added to ${referrerId}`);
+                 }
+             }
+        }
+
         const { data, error: insertError } = await supabase
           .from('users')
           .insert([{
             telegram_id: tgUser.id,
             first_name: tgUser.first_name,
             username: tgUser.username,
-            balance: 100 
+            balance: initialBalance,
+            referred_by: referredBy
           }])
           .select()
           .single();
@@ -47,6 +79,26 @@ export const userService = {
       console.error("Unexpected error in initUser:", e);
       return null;
     }
+  },
+
+  async getReferralStats(userId: number) {
+     if (!supabase) return { count: 0, earned: 0 };
+     try {
+         const { count, error } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true })
+            .eq('referred_by', userId);
+            
+         if (error) return { count: 0, earned: 0 };
+         
+         // Предполагаем, что за каждого давали 100 звезд
+         return {
+             count: count || 0,
+             earned: (count || 0) * 100
+         };
+     } catch (e) {
+         return { count: 0, earned: 0 };
+     }
   },
 
   async getBalance(userId: number) {

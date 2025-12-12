@@ -11,6 +11,7 @@ import { Profile } from './components/Profile';
 import { Gallery } from './components/Gallery';
 import { Dashboard } from './components/Dashboard';
 import { VoiceCloning } from './components/VoiceCloning';
+import { Earn } from './components/Earn';
 import { ChatSession, Message, ViewState, TelegramUser } from './types';
 import { streamChatResponse } from './services/geminiService';
 import { userService } from './services/userService';
@@ -40,6 +41,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       let user = null;
+      let startParam = undefined;
+
       if ((window as any).Telegram?.WebApp) {
         const tg = (window as any).Telegram.WebApp;
         tg.ready();
@@ -48,11 +51,12 @@ const App: React.FC = () => {
         if (tg.initDataUnsafe?.user) {
           user = tg.initDataUnsafe.user;
           setTgUser(user);
+          startParam = tg.initDataUnsafe.start_param; // Get ?startapp=ref_123
         }
       }
 
       if (user) {
-        await userService.initUser(user);
+        await userService.initUser(user, startParam);
         const bal = await userService.getBalance(user.id);
         setBalance(bal);
         
@@ -269,6 +273,7 @@ const App: React.FC = () => {
       case 'video': return <VideoGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} onVideoGenerated={() => setVideoCount(prev => prev + 1)} />;
       case 'music': return <MusicGenerator balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
       case 'voice_clone': return <VoiceCloning balance={balance} onUpdateBalance={setBalance} tgUser={tgUser} />;
+      case 'earn': return <Earn user={tgUser} balance={balance} />;
       case 'pricing': return <Pricing tgUser={tgUser} />;
       case 'gallery': 
         return (

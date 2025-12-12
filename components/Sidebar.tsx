@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, X, ChevronRight, Video, Trash2, LayoutGrid, Music, FolderHeart, Mic2 } from 'lucide-react';
+import { MessageSquare, ImageIcon, CreditCard, BookOpen, Settings, Plus, X, ChevronRight, Video, Trash2, LayoutGrid, Music, FolderHeart, Mic2, Gift } from 'lucide-react';
 import { ChatSession, ViewState } from '../types';
 import { clsx } from 'clsx';
 
@@ -37,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'music', label: 'Музыка', icon: Music, badge: 'v2.0' },
     { id: 'voice_clone', label: 'Клон голоса', icon: Mic2, badge: 'New' },
     { id: 'gallery', label: 'Мой контент', icon: FolderHeart },
+    { id: 'earn', label: 'Заработать', icon: Gift, highlight: true },
     { id: 'pricing', label: 'Магазин', icon: CreditCard },
     { id: 'docs', label: 'Инструкции', icon: BookOpen },
   ];
@@ -106,7 +107,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 "w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-medium transition-all duration-200",
                 currentView === item.id 
                   ? "bg-lime text-charcoal shadow-glow" 
-                  : "text-gray-500 hover:bg-gray-50 hover:text-charcoal"
+                  : (item.highlight 
+                      ? "bg-gradient-to-r from-orange-50 to-red-50 text-red-600 hover:from-orange-100 hover:to-red-100" 
+                      : "text-gray-500 hover:bg-gray-50 hover:text-charcoal")
               )}
             >
               <div className="flex items-center gap-3">
